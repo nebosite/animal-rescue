@@ -7,9 +7,18 @@
     <style>
       html, body { margin: 0; height: 100%; overflow: hidden; background: #10131a; }
       canvas { display: block; }
+      #controls-hint {
+        position: fixed; left: 16px; bottom: 14px;
+        font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: #8fa2c4; pointer-events: none; user-select: none;
+      }
+      #controls-hint b { color: #dce4f2; font-weight: 600; }
     </style>
   </head>
   <body>
+    <div id="controls-hint">
+      <b>W A S D</b> fly &nbsp;·&nbsp; <b>Space</b> up &nbsp;·&nbsp; <b>Shift</b> down
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

@@ -2,12 +2,15 @@
 
 ## North star
 
-*(To be written in Layer 2 — First Breath. The coach asks for the one sentence
-about what makes this worth building, discovered by playing it, not guessed now.)*
+**You are the only thing between a panicking animal and the fire — the game is
+the moment you drop in low, get it aboard, and haul out with the smoke closing in.**
 
-Working premise: **you fly a helicopter over a forest fire, and you save the
-animals running from it.** The feeling to chase is the rescue itself — spotting
-a panicked animal, getting low enough, and lifting it out with the fire closing in.
+Everything is judged against that moment. Flight exists to make the drop-in
+tense; the fire exists to put a clock on it; the animals exist to be worth
+saving. A feature that does not sharpen that moment does not belong.
+
+*(Provisional — written at First Breath from flying the helicopter. Worth
+re-cutting once there is an animal to actually pick up.)*
 
 ## Platform
 
@@ -24,8 +27,8 @@ Build like a growing thing: smallest runnable seed first, one layer at a time,
 always keeping working, shippable code.
 
 1. **Blank Screen** — smallest thing that runs. ✅ done
-2. **First Breath** — the one interaction that proves the idea. ← current
-3. **Grow by Observation** — let the running game say what is next.
+2. **First Breath** — a helicopter you can fly. ✅ done
+3. **Grow by Observation** — let the running game say what is next. ← current
 4. **Polish** — improve what already works.
 
 Rules that follow from it:
@@ -49,6 +52,11 @@ Rules that follow from it:
 - **Object-oriented, one class per file.** Filename matches the class.
 - **TypeScript strict.** No `any` without a comment earning it.
 - Comments explain *why*, not *what*. Constants live at the bottom of the file.
+
+## Controls
+
+`W A S D` (or arrow keys) fly horizontally · `Space` climbs · `Shift` descends.
+Forward is -Z, away from the camera. The camera trails from behind and above.
 
 ## Commands
 
