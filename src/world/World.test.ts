@@ -13,6 +13,22 @@ describe('World', () => {
     expect(lights.length).toBeGreaterThan(0)
   })
 
+  it('has both a pickup pad and a rescue pad', () => {
+    const world = new World()
+    expect(world.pads).toContain(world.pickupPad)
+    expect(world.pads).toContain(world.rescuePad)
+    expect(world.pads).toHaveLength(2)
+  })
+
+  it('keeps the real pads far enough apart that they cannot both be landed on', () => {
+    const { pickupPad, rescuePad } = new World()
+    const gap = Math.hypot(
+      pickupPad.position.x - rescuePad.position.x,
+      pickupPad.position.z - rescuePad.position.z,
+    )
+    expect(gap).toBeGreaterThan(pickupPad.radius + rescuePad.radius)
+  })
+
   it('matches the camera aspect to the viewport', () => {
     const world = new World()
     world.resize(1600, 900)

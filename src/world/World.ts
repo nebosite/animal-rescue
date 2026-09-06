@@ -1,5 +1,7 @@
 import * as THREE from 'three'
 import { HelicopterModel } from './HelicopterModel'
+import { LandingPadModel } from './LandingPadModel'
+import { LandingPad } from '../game/LandingPad'
 
 /**
  * The 3D world: scene, camera, lights, and the helicopter's body.
@@ -12,6 +14,14 @@ export class World {
   readonly scene: THREE.Scene
   readonly camera: THREE.PerspectiveCamera
   readonly helicopter = new HelicopterModel()
+  readonly pickupPad = new LandingPad('Pickup pad', new THREE.Vector3(-18, 0, -55))
+  readonly rescuePad = new LandingPad('Rescue pad', new THREE.Vector3(24, 0, -48))
+  readonly pads: readonly LandingPad[] = [this.pickupPad, this.rescuePad]
+
+  private readonly padModels = new Map<LandingPad, LandingPadModel>([
+    [this.pickupPad, new LandingPadModel(this.pickupPad, PICKUP_RIM_COLOR)],
+    [this.rescuePad, new LandingPadModel(this.rescuePad, RESCUE_RIM_COLOR)],
+  ])
 
   constructor() {
     this.scene = new THREE.Scene()
@@ -26,7 +36,13 @@ export class World {
     this.scene.add(sun)
 
     this.scene.add(new THREE.GridHelper(300, 60, GRID_COLOR, GRID_COLOR))
+    for (const model of this.padModels.values()) this.scene.add(model.group)
     this.scene.add(this.helicopter.group)
+  }
+
+  /** Light up whichever pad the helicopter is standing on, and only that one. */
+  highlightPad(landedOn: LandingPad | null): void {
+    for (const [pad, model] of this.padModels) model.setActive(pad === landedOn)
   }
 
   /**
@@ -50,4 +66,6 @@ export class World {
 }
 
 const SKY_COLOR = 0x1b2436
+const PICKUP_RIM_COLOR = 0xd9a441
+const RESCUE_RIM_COLOR = 0x5b8fd9
 const GRID_COLOR = 0x2f3d57

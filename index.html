@@ -13,9 +13,19 @@
         color: #8fa2c4; pointer-events: none; user-select: none;
       }
       #controls-hint b { color: #dce4f2; font-weight: 600; }
+      #status {
+        position: fixed; left: 50%; top: 28px; transform: translateX(-50%);
+        font: 600 15px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+        letter-spacing: 0.12em; color: #071410;
+        background: #5fd39a; padding: 10px 18px; border-radius: 999px;
+        opacity: 0; transition: opacity 140ms ease;
+        pointer-events: none; user-select: none;
+      }
+      #status.is-visible { opacity: 1; }
     </style>
   </head>
   <body>
+    <div id="status"></div>
     <div id="controls-hint">
       <b>W A S D</b> fly &nbsp;·&nbsp; <b>Space</b> up &nbsp;·&nbsp; <b>Shift</b> down
     </div>

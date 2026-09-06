@@ -11,6 +11,11 @@ import type { FlightInput } from './FlightInput'
 export class Helicopter {
   readonly position = new THREE.Vector3(0, START_ALTITUDE, 0)
 
+  /** True when the helicopter is resting at its lowest altitude, i.e. landed. */
+  get isOnGround(): boolean {
+    return this.position.y <= MIN_ALTITUDE + GROUND_TOLERANCE
+  }
+
   update(input: FlightInput, dt: number): void {
     const right = axis(input.right, input.left)
     const back = axis(input.back, input.forward)
@@ -43,5 +48,6 @@ const START_ALTITUDE = 8
 const HORIZONTAL_SPEED = 24
 const VERTICAL_SPEED = 14
 const MIN_ALTITUDE = 2
+const GROUND_TOLERANCE = 0.5
 const MAX_ALTITUDE = 90
 const FIELD_LIMIT = 140

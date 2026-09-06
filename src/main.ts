@@ -2,12 +2,16 @@ import * as THREE from 'three'
 import { World } from './world/World'
 import { Helicopter } from './game/Helicopter'
 import { Controls } from './game/Controls'
+import { Hud } from './ui/Hud'
+import { LandingPad } from './game/LandingPad'
 
 const world = new World()
 const helicopter = new Helicopter()
 
 const controls = new Controls()
 controls.attach(window)
+
+const hud = new Hud(document.getElementById('status')!)
 
 const renderer = new THREE.WebGLRenderer({ antialias: true })
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
@@ -36,6 +40,10 @@ renderer.setAnimationLoop(() => {
   world.helicopter.moveTo(helicopter.position)
   world.helicopter.spin(dt)
   world.follow(helicopter.position)
+
+  const landedPad = LandingPad.landedOn(world.pads, helicopter.position, helicopter.isOnGround)
+  world.highlightPad(landedPad)
+  hud.show(landedPad ? `LANDED — ${landedPad.label.toUpperCase()}` : '')
 
   renderer.render(world.scene, world.camera)
 })
