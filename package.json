@@ -1,0 +1,31 @@
+{
+  "name": "animal-rescue",
+  "version": "0.0.0",
+  "description": "A 3D game: fly a helicopter to rescue animals fleeing a forest fire.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nebosite/mcpdemo1.git"
+  },
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/nebosite/mcpdemo1/issues"
+  },
+  "homepage": "https://github.com/nebosite/mcpdemo1#readme",
+  "dependencies": {
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "@types/three": "^0.185.4",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2",
+    "vitest": "^5.0.0"
+  },
+  "private": true
+}
