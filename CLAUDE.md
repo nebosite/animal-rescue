@@ -79,6 +79,28 @@ is waiting immediately, so the loop repeats. The rules live in `Rescue`, which
 is told where the helicopter landed and decides whether anything happened —
 so calling it every frame while parked is harmless.
 
+## Sound
+
+All procedural Web Audio — no sample files, nothing to load. Lives in
+`src/audio/`, driven once per frame by `Soundscape` from the flight model and
+the rescue state; it reads, never decides.
+
+- **Rotor** (`RotorSound`) — sawtooth drone + noise wash, chopped by a
+  blade-pass LFO, plus a faint turbine whine. Pitch, chop rate, brightness and
+  volume all follow `Helicopter.effort`, so climbing, leaning and turning
+  audibly work harder. `rotorTargets()` is the pure mapping; tune it there.
+- **Animal beacon** (`AnimalBeacon`) — the waiting animal bleats every 1.8 s
+  through an HRTF panner at its position, with the listener at the helicopter
+  facing its heading. Direction and distance by ear. Silent while carrying.
+- **One-shots** (`SoundEffects`) — pickup chirps, delivery run + bell,
+  touchdown thud, and a knock when pushed back by the field edge or ceiling
+  (on a cooldown so it cannot machine-gun).
+
+Browsers refuse audio before a gesture, so `AudioEngine` starts on the first
+key or click and the HUD says so until then. In dev builds `window.__animalRescue`
+exposes the engine, soundscape, helicopter and controls so a browser-driving
+test can put an analyser on the master bus and listen.
+
 ## Commands
 
 | | |

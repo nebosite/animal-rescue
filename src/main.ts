@@ -6,12 +6,31 @@ import { Hud } from './ui/Hud'
 import { LandingPad } from './game/LandingPad'
 import { Rescue } from './game/Rescue'
 import { AnimalModel } from './world/AnimalModel'
+import { AudioEngine } from './audio/AudioEngine'
+import { Soundscape } from './audio/Soundscape'
 
 const world = new World()
 const helicopter = new Helicopter()
 
 const controls = new Controls()
 controls.attach(window)
+
+// Sound can only begin after a key press or click, so the soundscape is built
+// the moment the browser lets the engine start.
+const audio = new AudioEngine()
+audio.armOnGesture(window)
+let soundscape: Soundscape | null = null
+audio.onStart(() => { soundscape = new Soundscape(audio) })
+
+if (import.meta.env.DEV) {
+  // Dev-only handle so a browser-driving test can listen to the mix.
+  ;(window as unknown as { __animalRescue: unknown }).__animalRescue = {
+    audio,
+    helicopter,
+    controls,
+    get soundscape() { return soundscape },
+  }
+}
 
 const hud = new Hud(
   document.getElementById('status')!,
@@ -53,11 +72,18 @@ renderer.setAnimationLoop(() => {
   world.highlightPad(landedPad)
 
   switch (rescue.landedOn(landedPad)) {
-    case 'picked-up': hud.flash('ANIMAL ABOARD — GET IT TO THE RESCUE PAD'); break
-    case 'delivered': hud.flash('RESCUED!  +1'); break
+    case 'picked-up':
+      hud.flash('ANIMAL ABOARD — GET IT TO THE RESCUE PAD')
+      soundscape?.pickedUp()
+      break
+    case 'delivered':
+      hud.flash('RESCUED!  +1')
+      soundscape?.delivered()
+      break
   }
 
   placeAnimal()
+  soundscape?.frame(helicopter, rescue.animalWaiting ? WAITING_SPOT : null, dt)
   hud.showGamepad(controls.usingGamepad)
   hud.update(standingStatus(landedPad), rescue.score)
 
@@ -85,7 +111,10 @@ function placeAnimal(): void {
 
 function standingStatus(landedPad: LandingPad | null): string {
   if (landedPad) return `LANDED — ${landedPad.label.toUpperCase()}`
-  return rescue.carrying ? 'CARRYING AN ANIMAL' : ''
+  if (rescue.carrying) return 'CARRYING AN ANIMAL'
+  // Controller-only players never press a key, so tell them sound is waiting on one.
+  if (!audio.started) return 'PRESS ANY KEY OR CLICK FOR SOUND'
+  return ''
 }
 
 // Reused so the render loop is not allocating a vector every frame.
@@ -96,3 +125,5 @@ const CARRY_SCALE = 0.9
 const SLING_OFFSET = new THREE.Vector3(0, -(AnimalModel.heightAt(CARRY_SCALE) + 1.0), 0)
 // Stood off to the side of the H, so the helicopter does not park on top of it.
 const PAD_DECK_OFFSET = new THREE.Vector3(-4.6, 0.25, 1.8)
+// Where the waiting animal stands in the world — also where its call comes from.
+const WAITING_SPOT = world.pickupPad.position.clone().add(PAD_DECK_OFFSET)
