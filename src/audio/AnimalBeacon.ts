@@ -13,14 +13,15 @@ export class AnimalBeacon {
 
   constructor(engine: AudioEngine) {
     this.context = engine.context
-    // refDistance and rolloff are set so a call from the far pad still reads
-    // over a hard-working rotor; halve them and it vanishes into the wash.
+    // A gentle rolloff so the call carries from the far pad over a working
+    // rotor, while the modest volume keeps it from swamping the mix up close —
+    // a loud call right under the skids made the pickup feel like a cut-out.
     this.panner = new PannerNode(this.context, {
       panningModel: 'HRTF',
       distanceModel: 'inverse',
       refDistance: 18,
       maxDistance: 400,
-      rolloffFactor: 1.3,
+      rolloffFactor: 0.8,
     })
     this.panner.connect(engine.master)
   }
@@ -86,4 +87,4 @@ export class AnimalBeacon {
 
 /** Seconds between calls. */
 const CALL_PERIOD = 1.8
-const CALL_VOLUME = 0.7
+const CALL_VOLUME = 0.45

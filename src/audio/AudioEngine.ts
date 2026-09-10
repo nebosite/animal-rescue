@@ -1,5 +1,5 @@
 /**
- * Owns the AudioContext, the master bus and the listener.
+ * Owns the AudioContext, the master bus, the volume, and the listener.
  *
  * Browsers refuse to make sound until the page has had a key press or a
  * click, so the context is created on the first gesture rather than at load.
@@ -8,6 +8,10 @@
 export class AudioEngine {
   private ctx: AudioContext | null = null
   private masterBus: GainNode | null = null
+  private meter: AnalyserNode | null = null
+  private meterSamples: Float32Array<ArrayBuffer> | null = null
+  private volumeSetting = 1
+  private mutedSetting = false
   private readonly startListeners: Array<(engine: AudioEngine) => void> = []
 
   /** True once the browser is actually producing sound. */
@@ -24,6 +28,37 @@ export class AudioEngine {
   get master(): GainNode {
     if (!this.masterBus) throw new Error('AudioEngine has not started — wait for onStart')
     return this.masterBus
+  }
+
+  /** 0..1, what the player set. Applied on top of the fixed headroom. */
+  get volume(): number {
+    return this.volumeSetting
+  }
+
+  get muted(): boolean {
+    return this.mutedSetting
+  }
+
+  setVolume(volume: number): void {
+    this.volumeSetting = Math.min(1, Math.max(0, volume))
+    this.applyVolume()
+  }
+
+  setMuted(muted: boolean): void {
+    this.mutedSetting = muted
+    this.applyVolume()
+  }
+
+  /**
+   * RMS of what is actually leaving the speakers, 0 when silent. Read after
+   * the limiter, so it reports the real output rather than the pre-mix.
+   */
+  get level(): number {
+    if (!this.meter || !this.meterSamples) return 0
+    this.meter.getFloatTimeDomainData(this.meterSamples)
+    let sum = 0
+    for (const sample of this.meterSamples) sum += sample * sample
+    return Math.sqrt(sum / this.meterSamples.length)
   }
 
   /** Start on the first key press or click, which is when browsers allow sound. */
@@ -48,15 +83,24 @@ export class AudioEngine {
 
     this.ctx = new AudioContext()
 
-    // A compressor on the bus keeps one-shots stacked on the rotor from clipping.
+    // A gentle limiter on the bus keeps one-shots stacked on the rotor from
+    // clipping. It is a safety net, not a ducker: it only bites near full scale.
     const limiter = this.ctx.createDynamicsCompressor()
-    limiter.threshold.value = -12
-    limiter.ratio.value = 6
-    limiter.connect(this.ctx.destination)
+    limiter.threshold.value = -6
+    limiter.knee.value = 6
+    limiter.ratio.value = 4
+    limiter.attack.value = 0.003
+    limiter.release.value = 0.12
+
+    this.meter = this.ctx.createAnalyser()
+    this.meter.fftSize = 1024
+    this.meterSamples = new Float32Array(this.meter.fftSize)
 
     this.masterBus = this.ctx.createGain()
-    this.masterBus.gain.value = MASTER_VOLUME
     this.masterBus.connect(limiter)
+    limiter.connect(this.meter)
+    this.meter.connect(this.ctx.destination)
+    this.applyVolume()
 
     void this.ctx.resume()
     for (const listener of this.startListeners) listener(this)
@@ -84,6 +128,13 @@ export class AudioEngine {
       listener.setOrientation(forward.x, forward.y, forward.z, 0, 1, 0)
     }
   }
+
+  private applyVolume(): void {
+    if (!this.ctx || !this.masterBus) return
+    const target = this.mutedSetting ? 0 : this.volumeSetting * MASTER_HEADROOM
+    // A short ramp rather than a jump, so mute never clicks.
+    this.masterBus.gain.setTargetAtTime(target, this.ctx.currentTime, 0.02)
+  }
 }
 
 /** The direction the nose points for a heading — the same convention as the flight model. */
@@ -91,4 +142,5 @@ export function listenerOrientation(heading: number): { x: number; y: number; z:
   return { x: -Math.sin(heading), y: 0, z: -Math.cos(heading) }
 }
 
-const MASTER_VOLUME = 0.8
+/** Full volume still leaves a little headroom below the limiter. */
+const MASTER_HEADROOM = 0.8

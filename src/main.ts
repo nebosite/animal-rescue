@@ -8,6 +8,7 @@ import { Rescue } from './game/Rescue'
 import { AnimalModel } from './world/AnimalModel'
 import { AudioEngine } from './audio/AudioEngine'
 import { Soundscape } from './audio/Soundscape'
+import { VolumeControl } from './ui/VolumeControl'
 
 const world = new World()
 const helicopter = new Helicopter()
@@ -21,6 +22,11 @@ const audio = new AudioEngine()
 audio.armOnGesture(window)
 let soundscape: Soundscape | null = null
 audio.onStart(() => { soundscape = new Soundscape(audio) })
+new VolumeControl(
+  audio,
+  document.getElementById('mute') as HTMLButtonElement,
+  document.getElementById('volume') as HTMLInputElement,
+)
 
 if (import.meta.env.DEV) {
   // Dev-only handle so a browser-driving test can listen to the mix.

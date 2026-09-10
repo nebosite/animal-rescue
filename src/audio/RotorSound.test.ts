@@ -19,8 +19,10 @@ describe('rotorTargets', () => {
     expect(cruise.gain).toBeGreaterThan(hover.gain)
   })
 
-  it('never goes silent while running, and never exceeds unity gain', () => {
-    expect(rotorTargets(0, 0).gain).toBeGreaterThan(0.1)
+  it('stays clearly audible at idle, and never exceeds unity gain', () => {
+    // Regression: parked after a pickup the rotor is the whole mix, and an idle
+    // below this read as "the sound cut out" in play-testing.
+    expect(rotorTargets(0, 0).gain).toBeGreaterThanOrEqual(0.3)
     expect(rotorTargets(1, 100).gain).toBeLessThanOrEqual(1)
   })
 

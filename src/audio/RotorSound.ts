@@ -22,7 +22,9 @@ export function rotorTargets(effort: number, speed: number): RotorTargets {
     chopHz: 11 + 7 * work + 2 * pace,
     cutoffHz: 240 + 420 * work,
     whineHz: 1150 + 750 * work,
-    gain: 0.22 + 0.42 * work + 0.08 * pace,
+    // The idle floor matters: parked after a pickup, the rotor is all that is
+    // left in the mix, and if it fades too far the game sounds like it stopped.
+    gain: IDLE_GAIN + 0.38 * work + 0.08 * pace,
   }
 }
 
@@ -48,14 +50,15 @@ export class RotorSound {
     this.output.gain.value = 0
     this.output.connect(engine.master)
 
-    // The chop: a gain that swings 0.2..1.0 at blade-pass rate.
+    // The chop: a gain that swings 0.3..1.0 at blade-pass rate. The trough is
+    // kept off the floor so idle does not thump-then-vanish between blades.
     const chopped = ctx.createGain()
-    chopped.gain.value = 0.6
+    chopped.gain.value = 0.65
     chopped.connect(this.output)
     this.chop = ctx.createOscillator()
     this.chop.type = 'sine'
     const chopDepth = ctx.createGain()
-    chopDepth.gain.value = 0.4
+    chopDepth.gain.value = 0.35
     this.chop.connect(chopDepth)
     chopDepth.connect(chopped.gain)
 
@@ -119,5 +122,7 @@ function clamp01(value: number): number {
 
 /** Matches the flight model's top speed, so `pace` reads 1 at full cruise. */
 const TOP_SPEED = 31
+/** Loudness while idling on the ground. Below about 0.3 it reads as silence after a pickup. */
+const IDLE_GAIN = 0.32
 /** Time constant for parameter changes, seconds. */
 const SMOOTHING = 0.12
