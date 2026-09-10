@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { HelicopterModel } from './HelicopterModel'
 import { LandingPadModel } from './LandingPadModel'
 import { LandingPad } from '../game/LandingPad'
+import { AnimalModel } from './AnimalModel'
 
 /**
  * The 3D world: scene, camera, lights, and the helicopter's body.
@@ -14,6 +15,7 @@ export class World {
   readonly scene: THREE.Scene
   readonly camera: THREE.PerspectiveCamera
   readonly helicopter = new HelicopterModel()
+  readonly animal = new AnimalModel()
   readonly pickupPad = new LandingPad('Pickup pad', new THREE.Vector3(-18, 0, -55))
   readonly rescuePad = new LandingPad('Rescue pad', new THREE.Vector3(24, 0, -48))
   readonly pads: readonly LandingPad[] = [this.pickupPad, this.rescuePad]
@@ -37,6 +39,7 @@ export class World {
 
     this.scene.add(new THREE.GridHelper(300, 60, GRID_COLOR, GRID_COLOR))
     for (const model of this.padModels.values()) this.scene.add(model.group)
+    this.scene.add(this.animal.group)
     this.scene.add(this.helicopter.group)
   }
 

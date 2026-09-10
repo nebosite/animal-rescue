@@ -22,9 +22,18 @@
         pointer-events: none; user-select: none;
       }
       #status.is-visible { opacity: 1; }
+      #status.is-flash { background: #f0c674; }
+      #score {
+        position: fixed; right: 18px; top: 16px;
+        font: 600 14px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+        letter-spacing: 0.14em; color: #dce4f2;
+        background: rgba(20, 27, 41, 0.72); padding: 9px 14px; border-radius: 8px;
+        pointer-events: none; user-select: none;
+      }
     </style>
   </head>
   <body>
+    <div id="score">RESCUED 0</div>
     <div id="status"></div>
     <div id="controls-hint">
       <b>W A S D</b> fly &nbsp;·&nbsp; <b>Space</b> up &nbsp;·&nbsp; <b>Shift</b> down

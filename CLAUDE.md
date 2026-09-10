@@ -58,6 +58,14 @@ Rules that follow from it:
 `W A S D` (or arrow keys) fly horizontally · `Space` climbs · `Shift` descends.
 Forward is -Z, away from the camera. The camera trails from behind and above.
 
+## The loop so far
+
+An animal waits at the amber pickup pad. Land there to take it aboard, fly to
+the blue rescue pad, and land again to deliver it for a point. Another animal
+is waiting immediately, so the loop repeats. The rules live in `Rescue`, which
+is told where the helicopter landed and decides whether anything happened —
+so calling it every frame while parked is harmless.
+
 ## Commands
 
 | | |
