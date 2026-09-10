@@ -1,6 +1,7 @@
 import type { AudioEngine } from './AudioEngine'
 import { Cooldown } from './Cooldown'
 import { createNoiseBuffer } from './NoiseBuffer'
+import type { Reverb } from './Reverb'
 
 /**
  * One-shot sounds that tell the player something just happened. Each is a few
@@ -12,10 +13,20 @@ export class SoundEffects {
   private readonly noise: AudioBuffer
   private readonly bumpCooldown = new Cooldown(BUMP_COOLDOWN)
 
-  constructor(engine: AudioEngine) {
+  constructor(engine: AudioEngine, reverb?: Reverb) {
     this.context = engine.context
-    this.output = engine.master
     this.noise = createNoiseBuffer(this.context)
+
+    this.output = this.context.createGain()
+    this.output.connect(engine.master)
+
+    // One-shots ring out into the space so they land as events, not blips.
+    if (reverb) {
+      const ring = this.context.createGain()
+      ring.gain.value = 0.5
+      this.output.connect(ring)
+      ring.connect(reverb.send)
+    }
   }
 
   advance(dt: number): void {

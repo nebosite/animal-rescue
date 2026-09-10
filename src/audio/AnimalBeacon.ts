@@ -1,5 +1,6 @@
 import type { AudioEngine } from './AudioEngine'
 import { Cadence } from './Cadence'
+import type { Reverb } from './Reverb'
 
 /**
  * The waiting animal calling out, placed in 3D so the player can hear which
@@ -11,7 +12,7 @@ export class AnimalBeacon {
   private readonly panner: PannerNode
   private readonly cadence = new Cadence(CALL_PERIOD)
 
-  constructor(engine: AudioEngine) {
+  constructor(engine: AudioEngine, reverb?: Reverb) {
     this.context = engine.context
     // A gentle rolloff so the call carries from the far pad over a working
     // rotor, while the modest volume keeps it from swamping the mix up close —
@@ -24,6 +25,14 @@ export class AnimalBeacon {
       rolloffFactor: 0.8,
     })
     this.panner.connect(engine.master)
+
+    // A far-off call in open country comes back off the hills: a strong send.
+    if (reverb) {
+      const echo = this.context.createGain()
+      echo.gain.value = 0.55
+      this.panner.connect(echo)
+      echo.connect(reverb.send)
+    }
   }
 
   /** Where the call is currently coming from in the world. */

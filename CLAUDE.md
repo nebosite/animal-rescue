@@ -9,8 +9,28 @@ Everything is judged against that moment. Flight exists to make the drop-in
 tense; the fire exists to put a clock on it; the animals exist to be worth
 saving. A feature that does not sharpen that moment does not belong.
 
-*(Provisional — written at First Breath from flying the helicopter. Worth
-re-cutting once there is an animal to actually pick up.)*
+And the player should *want* to save them: the animals have names and
+personalities, and you know who is waiting down there.
+
+## Design direction
+
+Set after the first playable loop, from the owner's notes. These steer every
+later layer.
+
+- **Non-violent.** Drama without deadly violence. Fire is a clock and a wall,
+  never a killer; nothing is hurt on screen. Stakes come from time, awkward
+  landings, and disappointing someone.
+- **Named animals with personalities.** Each has a name, a look, a voice and a
+  temperament. Adorable ones are high value — and prima donnas who scold you
+  for rough treatment (a hard landing, a steep bank with them slung). Funny,
+  distinct sound effects per animal.
+- **The Chief.** A Zootopia-style boss on the radio who cares intensely about
+  the helicopter's paint job. Comic pressure, never cruelty.
+- **Pickups are places, not pads.** Animals wait at landscape locations — a
+  clearing, a ridge, a riverbank, the edge of the fire line — each with its
+  own landing difficulty. Only the rescue base is a pad.
+- **Cinematic sound.** Space, weather and drama in the mix, not just cues.
+- **The fiery landscape is where this is going.**
 
 ## Platform
 
@@ -95,6 +115,15 @@ the rescue state; it reads, never decides.
 - **One-shots** (`SoundEffects`) — pickup chirps, delivery run + bell,
   touchdown thud, and a knock when pushed back by the field edge or ceiling
   (on a cooldown so it cannot machine-gun).
+- **Space** (`Reverb`) — a synthesized outdoor impulse response on a send
+  bus. The animal's call echoes hardest, one-shots ring, the rotor gets air.
+- **Wind** (`WindSound`) — a gusting, drifting noise bed that is silent on the
+  ground and grows with altitude and speed, so it doubles as an altimeter.
+  `windTargets()` is the pure mapping.
+
+Mix balance matters more than any single sound: the first play-test "sound
+cut out after pickup" was the parked rotor being too quiet next to a loud
+close-up call. `AudioEngine.level` reads the real output for checking this.
 
 Browsers refuse audio before a gesture, so `AudioEngine` starts on the first
 key or click and the HUD says so until then. In dev builds `window.__animalRescue`

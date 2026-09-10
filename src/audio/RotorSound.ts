@@ -1,5 +1,6 @@
 import type { AudioEngine } from './AudioEngine'
 import { createNoiseBuffer } from './NoiseBuffer'
+import type { Reverb } from './Reverb'
 
 /** What the rotor should sound like for a given amount of work. */
 export interface RotorTargets {
@@ -38,17 +39,26 @@ export class RotorSound {
   private readonly context: AudioContext
   private readonly output: GainNode
   private readonly drone: OscillatorNode
+  private readonly droneTwin: OscillatorNode
   private readonly droneFilter: BiquadFilterNode
   private readonly chop: OscillatorNode
   private readonly whine: OscillatorNode
 
-  constructor(engine: AudioEngine) {
+  constructor(engine: AudioEngine, reverb?: Reverb) {
     const ctx = engine.context
     this.context = ctx
 
     this.output = ctx.createGain()
     this.output.gain.value = 0
     this.output.connect(engine.master)
+
+    // A little of the rotor into the space gives it air without washing it out.
+    if (reverb) {
+      const air = ctx.createGain()
+      air.gain.value = 0.16
+      this.output.connect(air)
+      air.connect(reverb.send)
+    }
 
     // The chop: a gain that swings 0.3..1.0 at blade-pass rate. The trough is
     // kept off the floor so idle does not thump-then-vanish between blades.
@@ -62,13 +72,20 @@ export class RotorSound {
     this.chop.connect(chopDepth)
     chopDepth.connect(chopped.gain)
 
-    // The drone: sawtooth through a lowpass that opens with effort.
+    // The drone: two sawtooths a few hertz apart, so they beat against each
+    // other like real blades, through a lowpass that opens with effort.
     this.drone = ctx.createOscillator()
     this.drone.type = 'sawtooth'
+    this.droneTwin = ctx.createOscillator()
+    this.droneTwin.type = 'sawtooth'
+    const droneMix = ctx.createGain()
+    droneMix.gain.value = 0.55
     this.droneFilter = ctx.createBiquadFilter()
     this.droneFilter.type = 'lowpass'
     this.droneFilter.Q.value = 1.2
-    this.drone.connect(this.droneFilter)
+    this.drone.connect(droneMix)
+    this.droneTwin.connect(droneMix)
+    droneMix.connect(this.droneFilter)
     this.droneFilter.connect(chopped)
 
     // The wash: noise through a bandpass, also chopped.
@@ -95,12 +112,14 @@ export class RotorSound {
 
     const targets = rotorTargets(0, 0)
     this.drone.frequency.value = targets.droneHz
+    this.droneTwin.frequency.value = targets.droneHz * TWIN_DETUNE
     this.chop.frequency.value = targets.chopHz
     this.droneFilter.frequency.value = targets.cutoffHz
     this.whine.frequency.value = targets.whineHz
 
     this.chop.start()
     this.drone.start()
+    this.droneTwin.start()
     wash.start()
     this.whine.start()
   }
@@ -109,6 +128,7 @@ export class RotorSound {
     const targets = rotorTargets(effort, speed)
     const now = this.context.currentTime
     this.drone.frequency.setTargetAtTime(targets.droneHz, now, SMOOTHING)
+    this.droneTwin.frequency.setTargetAtTime(targets.droneHz * TWIN_DETUNE, now, SMOOTHING)
     this.chop.frequency.setTargetAtTime(targets.chopHz, now, SMOOTHING)
     this.droneFilter.frequency.setTargetAtTime(targets.cutoffHz, now, SMOOTHING)
     this.whine.frequency.setTargetAtTime(targets.whineHz, now, SMOOTHING)
@@ -126,3 +146,5 @@ const TOP_SPEED = 31
 const IDLE_GAIN = 0.32
 /** Time constant for parameter changes, seconds. */
 const SMOOTHING = 0.12
+/** The twin drone runs 3.5% sharp: a 2–3 Hz beat across the working range. */
+const TWIN_DETUNE = 1.035
