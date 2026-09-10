@@ -1,34 +1,32 @@
-import { noInput, type FlightInput } from './FlightInput'
+import { combineInputs, noInput, type FlightInput } from './FlightInput'
+import { GamepadInput } from './GamepadInput'
+import { KeyboardInput } from './KeyboardInput'
 
 /**
- * Translates held keys into flight input. Thin on purpose: it owns no flight
- * behavior, only the keyboard mapping.
+ * Every input device merged into one FlightInput. Keyboard and controller are
+ * both live at once, so a player can pick up either without choosing.
  */
 export class Controls {
-  readonly input: FlightInput = noInput()
+  readonly keyboard = new KeyboardInput()
+  readonly gamepad: GamepadInput
+  private readonly merged: FlightInput = noInput()
 
-  private readonly onKeyDown = (event: KeyboardEvent) => this.set(event.code, true)
-  private readonly onKeyUp = (event: KeyboardEvent) => this.set(event.code, false)
+  constructor(gamepad: GamepadInput = new GamepadInput()) {
+    this.gamepad = gamepad
+  }
 
   attach(target: Window): void {
-    target.addEventListener('keydown', this.onKeyDown)
-    target.addEventListener('keyup', this.onKeyUp)
-    // Releasing a key while the tab is unfocused is never delivered, which would
-    // otherwise leave the helicopter flying off on its own.
-    target.addEventListener('blur', () => Object.assign(this.input, noInput()))
+    this.keyboard.attach(target)
   }
 
-  private set(code: string, held: boolean): void {
-    const direction = KEY_MAP[code]
-    if (direction) this.input[direction] = held
+  /** True while a controller is plugged in — used to switch the on-screen hints. */
+  get usingGamepad(): boolean {
+    return this.gamepad.connected
   }
-}
 
-const KEY_MAP: Record<string, keyof FlightInput | undefined> = {
-  KeyW: 'forward', ArrowUp: 'forward',
-  KeyS: 'back', ArrowDown: 'back',
-  KeyA: 'left', ArrowLeft: 'left',
-  KeyD: 'right', ArrowRight: 'right',
-  Space: 'up',
-  ShiftLeft: 'down', ShiftRight: 'down',
+  /** Read every device once and return the combined request. Call once per frame. */
+  poll(): FlightInput {
+    this.gamepad.poll()
+    return combineInputs(this.keyboard.input, this.gamepad.input, this.merged)
+  }
 }

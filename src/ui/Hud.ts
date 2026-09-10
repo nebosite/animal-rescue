@@ -14,7 +14,14 @@ export class Hud {
   constructor(
     private readonly statusElement: HTMLElement,
     private readonly scoreElement: HTMLElement,
+    private readonly hintElement: HTMLElement,
   ) {}
+
+  /** Show the controller hints instead of the keyboard ones while a pad is connected. */
+  showGamepad(connected: boolean): void {
+    const device = connected ? 'gamepad' : 'keyboard'
+    if (this.hintElement.dataset.device !== device) this.hintElement.dataset.device = device
+  }
 
   /** Show a message that takes over the banner briefly, then falls back. */
   flash(message: string, seconds = 2.2): void {

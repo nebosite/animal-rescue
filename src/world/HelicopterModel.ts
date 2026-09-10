@@ -63,6 +63,18 @@ export class HelicopterModel {
   moveTo(position: THREE.Vector3): void {
     this.group.position.copy(position)
   }
+
+  /**
+   * Point the nose along `heading` and lean by `pitch` (positive nose-down) and
+   * `roll` (positive right-side-down). Yaw is applied first, then the leans in
+   * the body frame, which is what YXZ order means.
+   *
+   * Three.js rotates the nose *up* for positive X and the right side *up* for
+   * positive Z, so both leans are negated here to match the flight model.
+   */
+  setAttitude(heading: number, pitch: number, roll: number): void {
+    this.group.rotation.set(-pitch, heading, -roll, 'YXZ')
+  }
 }
 
 function box(width: number, height: number, depth: number, color: number): THREE.Mesh {

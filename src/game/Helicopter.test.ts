@@ -1,57 +1,159 @@
 import { describe, expect, it } from 'vitest'
 import { Helicopter } from './Helicopter'
-import { noInput } from './FlightInput'
+import { noInput, type FlightInput } from './FlightInput'
 
-function fly(overrides: Partial<ReturnType<typeof noInput>>, seconds = 1) {
-  const helicopter = new Helicopter()
-  helicopter.update({ ...noInput(), ...overrides }, seconds)
+/** Fly with the given axes held for `seconds`, stepping at 60 Hz. */
+function fly(helicopter: Helicopter, axes: Partial<FlightInput>, seconds: number): Helicopter {
+  const input = { ...noInput(), ...axes }
+  const steps = Math.round(seconds * 60)
+  for (let i = 0; i < steps; i++) helicopter.update(input, 1 / 60)
   return helicopter
 }
 
-describe('Helicopter', () => {
-  it('stays put with no input', () => {
-    const start = new Helicopter().position.clone()
-    expect(fly({}).position).toEqual(start)
+const fresh = () => new Helicopter()
+
+describe('Helicopter flight model', () => {
+  it('hovers in place with no input', () => {
+    const start = fresh().position.clone()
+    const helicopter = fly(fresh(), {}, 2)
+    expect(helicopter.position.distanceTo(start)).toBeLessThan(1e-6)
+    expect(helicopter.speed).toBeCloseTo(0)
   })
 
-  it('flies right and left along X', () => {
-    expect(fly({ right: true }).position.x).toBeGreaterThan(0)
-    expect(fly({ left: true }).position.x).toBeLessThan(0)
+  it('flies forward along -Z when pitched forward from the initial heading', () => {
+    const helicopter = fly(fresh(), { pitch: 1 }, 1)
+    expect(helicopter.position.z).toBeLessThan(-5)
+    expect(Math.abs(helicopter.position.x)).toBeLessThan(1e-6)
   })
 
-  it('flies forward away from the camera along -Z', () => {
-    expect(fly({ forward: true }).position.z).toBeLessThan(0)
-    expect(fly({ back: true }).position.z).toBeGreaterThan(0)
+  it('flies backward when pitched back', () => {
+    expect(fly(fresh(), { pitch: -1 }, 1).position.z).toBeGreaterThan(5)
   })
 
-  it('climbs and descends along Y', () => {
-    const start = new Helicopter().position.y
-    expect(fly({ up: true }).position.y).toBeGreaterThan(start)
-    expect(fly({ down: true }).position.y).toBeLessThan(start)
+  it('slides right and left with roll, without turning', () => {
+    const right = fly(fresh(), { roll: 1 }, 1)
+    expect(right.position.x).toBeGreaterThan(5)
+    expect(right.heading).toBeCloseTo(0)
+    expect(fly(fresh(), { roll: -1 }, 1).position.x).toBeLessThan(-5)
   })
 
-  it('moves twice as far in twice the time', () => {
-    const short = fly({ right: true }, 0.5).position.x
-    const long = fly({ right: true }, 1).position.x
-    expect(long).toBeCloseTo(short * 2)
+  it('climbs and descends with collective', () => {
+    const start = fresh().position.y
+    expect(fly(fresh(), { collective: 1 }, 1).position.y).toBeGreaterThan(start + 3)
+    expect(fly(fresh(), { collective: -1 }, 0.5).position.y).toBeLessThan(start)
+  })
+
+  it('leans before it moves: speed builds up rather than appearing instantly', () => {
+    const early = fly(fresh(), { pitch: 1 }, 0.1).speed
+    const later = fly(fresh(), { pitch: 1 }, 1.0).speed
+    expect(early).toBeLessThan(later * 0.25)
+  })
+
+  it('keeps drifting after the stick is released, then slows down', () => {
+    const helicopter = fly(fresh(), { pitch: 1 }, 1.5)
+    const speedOnRelease = helicopter.speed
+    const zOnRelease = helicopter.position.z
+
+    fly(helicopter, {}, 0.5)
+    expect(helicopter.position.z).toBeLessThan(zOnRelease)
+    expect(helicopter.speed).toBeLessThan(speedOnRelease)
+    expect(helicopter.speed).toBeGreaterThan(speedOnRelease * 0.3)
+
+    fly(helicopter, {}, 6)
+    expect(helicopter.speed).toBeLessThan(0.1)
+  })
+
+  it('reaches a top speed instead of accelerating forever', () => {
+    // Kept short enough not to reach the field boundary, which would zero the speed.
+    const helicopter = fly(fresh(), { pitch: 1 }, 3)
+    const cruise = helicopter.speed
+    fly(helicopter, { pitch: 1 }, 1)
+    expect(helicopter.speed).toBeLessThan(cruise * 1.05)
+    expect(cruise).toBeGreaterThan(20)
+    expect(cruise).toBeLessThan(40)
+  })
+
+  it('yaw turns the nose right, and forward follows the nose', () => {
+    const helicopter = fly(fresh(), { yaw: 1 }, 0.7)
+    fly(helicopter, {}, 1) // let the yaw rate settle
+    const heading = helicopter.heading
+    expect(heading).toBeLessThan(-0.5) // a right turn is a negative rotation about +Y
+
+    const before = helicopter.position.clone()
+    fly(helicopter, { pitch: 1 }, 1)
+    const moved = helicopter.position.clone().sub(before).setY(0).normalize()
+    const nose = { x: -Math.sin(heading), z: -Math.cos(heading) }
+    expect(moved.x * nose.x + moved.z * nose.z).toBeGreaterThan(0.98)
+    expect(moved.x).toBeGreaterThan(0) // turned right from facing -Z means heading toward +X
   })
 
   it('does not fly faster diagonally than straight', () => {
-    const straight = fly({ right: true }).position.x
-    const diagonal = fly({ right: true, forward: true }).position
-    const distance = Math.hypot(diagonal.x, diagonal.z)
-    expect(distance).toBeCloseTo(straight)
+    const straight = fly(fresh(), { pitch: 1 }, 3).speed
+    const diagonal = fly(fresh(), { pitch: 1, roll: 1 }, 3).speed
+    expect(diagonal).toBeLessThanOrEqual(straight * 1.001)
+  })
+
+  it('pitches nose-down when flying forward and levels out when released', () => {
+    const helicopter = fly(fresh(), { pitch: 1 }, 1)
+    expect(helicopter.pitch).toBeGreaterThan(0.3)
+    fly(helicopter, {}, 1.5)
+    expect(Math.abs(helicopter.pitch)).toBeLessThan(0.01)
+  })
+
+  it('banks into a turn even with no sideways input', () => {
+    const helicopter = fly(fresh(), { yaw: 1 }, 1)
+    expect(helicopter.roll).toBeGreaterThan(0.15)
   })
 
   it('cannot sink through the ground', () => {
-    const helicopter = new Helicopter()
-    for (let i = 0; i < 100; i++) helicopter.update({ ...noInput(), down: true }, 1)
-    expect(helicopter.position.y).toBeGreaterThan(0)
+    const helicopter = fly(fresh(), { collective: -1 }, 5)
+    expect(helicopter.position.y).toBeGreaterThanOrEqual(2)
+    expect(helicopter.isOnGround).toBe(true)
   })
 
-  it('stays inside the grid', () => {
-    const helicopter = new Helicopter()
-    for (let i = 0; i < 100; i++) helicopter.update({ ...noInput(), right: true }, 1)
-    expect(helicopter.position.x).toBeLessThanOrEqual(150)
+  it('reports the touchdown exactly once', () => {
+    const helicopter = fresh()
+    const input = { ...noInput(), collective: -1 }
+    let landings = 0
+    for (let i = 0; i < 300; i++) {
+      helicopter.update(input, 1 / 60)
+      if (helicopter.justLanded) landings++
+    }
+    expect(helicopter.isOnGround).toBe(true)
+    expect(landings).toBe(1)
+  })
+
+  it('grips the ground: landed, it will not slide off under stick input', () => {
+    const helicopter = fly(fresh(), { collective: -1 }, 3)
+    const parked = helicopter.position.clone()
+    fly(helicopter, { pitch: 1, roll: 1 }, 2)
+    expect(helicopter.position.distanceTo(parked)).toBeLessThan(0.01)
+    expect(helicopter.isOnGround).toBe(true)
+  })
+
+  it('lifts off from the ground and can then fly again', () => {
+    const helicopter = fly(fresh(), { collective: -1 }, 3)
+    fly(helicopter, { collective: 1 }, 1)
+    expect(helicopter.isOnGround).toBe(false)
+    const z = helicopter.position.z
+    fly(helicopter, { pitch: 1 }, 1)
+    expect(helicopter.position.z).toBeLessThan(z - 3)
+  })
+
+  it('stays inside the field and reports the bump', () => {
+    const helicopter = fresh()
+    let bumped = false
+    const input = { ...noInput(), roll: 1 }
+    for (let i = 0; i < 60 * 20; i++) {
+      helicopter.update(input, 1 / 60)
+      bumped ||= helicopter.justBumped
+    }
+    expect(helicopter.position.x).toBeLessThanOrEqual(140)
+    expect(bumped).toBe(true)
+  })
+
+  it('works harder when climbing and leaning than when hovering', () => {
+    expect(fly(fresh(), {}, 1).effort).toBeCloseTo(0, 2)
+    expect(fly(fresh(), { pitch: 1, collective: 1 }, 1).effort).toBeGreaterThan(0.5)
   })
 })

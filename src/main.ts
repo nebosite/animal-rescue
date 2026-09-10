@@ -13,7 +13,11 @@ const helicopter = new Helicopter()
 const controls = new Controls()
 controls.attach(window)
 
-const hud = new Hud(document.getElementById('status')!, document.getElementById('score')!)
+const hud = new Hud(
+  document.getElementById('status')!,
+  document.getElementById('score')!,
+  document.getElementById('controls-hint')!,
+)
 const rescue = new Rescue(world.pickupPad, world.rescuePad)
 
 const renderer = new THREE.WebGLRenderer({ antialias: true })
@@ -39,10 +43,11 @@ renderer.setAnimationLoop(() => {
   // Cap dt so a long stall cannot teleport the helicopter across the map.
   const dt = Math.min(timer.getDelta(), 0.1)
 
-  helicopter.update(controls.input, dt)
+  helicopter.update(controls.poll(), dt)
   world.helicopter.moveTo(helicopter.position)
+  world.helicopter.setAttitude(helicopter.heading, helicopter.pitch, helicopter.roll)
   world.helicopter.spin(dt)
-  world.follow(helicopter.position)
+  world.follow(helicopter.position, helicopter.heading, dt)
 
   const landedPad = LandingPad.landedOn(world.pads, helicopter.position, helicopter.isOnGround)
   world.highlightPad(landedPad)
@@ -53,6 +58,7 @@ renderer.setAnimationLoop(() => {
   }
 
   placeAnimal()
+  hud.showGamepad(controls.usingGamepad)
   hud.update(standingStatus(landedPad), rescue.score)
 
   renderer.render(world.scene, world.camera)

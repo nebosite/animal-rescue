@@ -35,14 +35,14 @@ describe('landing on a pad', () => {
     expect(target.covers(helicopter.position) && helicopter.isOnGround).toBe(false)
 
     // Settled onto the pad.
-    for (let i = 0; i < 20; i++) helicopter.update({ ...noInput(), down: true }, 1)
+    for (let i = 0; i < 20; i++) helicopter.update({ ...noInput(), collective: -1 }, 1)
     expect(helicopter.isOnGround).toBe(true)
     expect(target.covers(helicopter.position) && helicopter.isOnGround).toBe(true)
   })
 
   it('does not count landing on open ground away from the pad', () => {
     const helicopter = new Helicopter()
-    for (let i = 0; i < 20; i++) helicopter.update({ ...noInput(), down: true }, 1)
+    for (let i = 0; i < 20; i++) helicopter.update({ ...noInput(), collective: -1 }, 1)
     expect(helicopter.isOnGround).toBe(true)
     expect(pad().covers(helicopter.position)).toBe(false)
   })

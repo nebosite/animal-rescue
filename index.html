@@ -13,6 +13,8 @@
         color: #8fa2c4; pointer-events: none; user-select: none;
       }
       #controls-hint b { color: #dce4f2; font-weight: 600; }
+      #controls-hint[data-device="keyboard"] .for-gamepad { display: none; }
+      #controls-hint[data-device="gamepad"] .for-keyboard { display: none; }
       #status {
         position: fixed; left: 50%; top: 28px; transform: translateX(-50%);
         font: 600 15px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -35,8 +37,13 @@
   <body>
     <div id="score">RESCUED 0</div>
     <div id="status"></div>
-    <div id="controls-hint">
-      <b>W A S D</b> fly &nbsp;·&nbsp; <b>Space</b> up &nbsp;·&nbsp; <b>Shift</b> down
+    <div id="controls-hint" data-device="keyboard">
+      <span class="for-keyboard">
+        <b>W S</b> nose down / up &nbsp;·&nbsp; <b>A D</b> turn &nbsp;·&nbsp; <b>Q E</b> slide &nbsp;·&nbsp; <b>Space</b> climb &nbsp;·&nbsp; <b>Shift</b> descend
+      </span>
+      <span class="for-gamepad">
+        <b>Left stick</b> nose / slide &nbsp;·&nbsp; <b>Right stick</b> turn &nbsp;·&nbsp; <b>RT</b> climb &nbsp;·&nbsp; <b>LT</b> descend
+      </span>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

@@ -42,11 +42,29 @@ describe('World', () => {
     expect(world.camera.aspect).toBeCloseTo(16 / 9)
   })
 
-  it('keeps the camera behind and above whatever it follows', () => {
+  it('places the camera behind and above the helicopter on the first frame, with no fly-in', () => {
     const world = new World()
     const target = new THREE.Vector3(10, 20, -30)
-    world.follow(target)
-    expect(world.camera.position.y).toBeGreaterThan(target.y)
-    expect(world.camera.position.z).toBeGreaterThan(target.z)
+    world.follow(target, 0, 1 / 60)
+    expect(world.camera.position.y).toBeGreaterThan(target.y + 5)
+    expect(world.camera.position.z).toBeGreaterThan(target.z + 20)
+  })
+
+  it('swings round behind the tail as the heading changes', () => {
+    const world = new World()
+    const target = new THREE.Vector3(0, 10, 0)
+    world.follow(target, 0, 1 / 60)
+    // Facing +Z instead: the tail, and so the camera, is now on the -Z side.
+    for (let i = 0; i < 600; i++) world.follow(target, Math.PI, 1 / 60)
+    expect(world.camera.position.z).toBeLessThan(-20)
+  })
+
+  it('eases toward the new camera spot rather than jumping there', () => {
+    const world = new World()
+    const target = new THREE.Vector3(0, 10, 0)
+    world.follow(target, 0, 1 / 60)
+    world.follow(target, Math.PI, 1 / 60)
+    // One frame later it has barely begun to swing round.
+    expect(world.camera.position.z).toBeGreaterThan(20)
   })
 })

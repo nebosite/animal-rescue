@@ -20,6 +20,7 @@ export class World {
   readonly rescuePad = new LandingPad('Rescue pad', new THREE.Vector3(24, 0, -48))
   readonly pads: readonly LandingPad[] = [this.pickupPad, this.rescuePad]
 
+  private cameraPlaced = false
   private readonly padModels = new Map<LandingPad, LandingPadModel>([
     [this.pickupPad, new LandingPadModel(this.pickupPad, PICKUP_RIM_COLOR)],
     [this.rescuePad, new LandingPadModel(this.rescuePad, RESCUE_RIM_COLOR)],
@@ -49,12 +50,35 @@ export class World {
   }
 
   /**
-   * Trail the helicopter from behind and above. Without this the helicopter
-   * flies out of a fixed camera's view within a couple of seconds.
+   * Trail the helicopter from behind its tail and above, swinging round as it
+   * turns. The camera eases toward where it wants to be rather than snapping,
+   * so a hard turn shows a little of the helicopter's side — that lag is a
+   * large part of what makes the turn feel like one. The first call snaps so
+   * there is no fly-in at load.
    */
-  follow(position: THREE.Vector3): void {
-    this.camera.position.set(position.x, position.y + 12, position.z + 30)
-    this.camera.lookAt(position)
+  follow(position: THREE.Vector3, heading: number, dt: number): void {
+    const sinH = Math.sin(heading)
+    const cosH = Math.cos(heading)
+
+    // The tail points (+sin h, +cos h) in the ground plane.
+    CAMERA_GOAL.set(
+      position.x + sinH * CAMERA_BACK,
+      position.y + CAMERA_UP,
+      position.z + cosH * CAMERA_BACK,
+    )
+    if (this.cameraPlaced) {
+      this.camera.position.lerp(CAMERA_GOAL, 1 - Math.exp(-CAMERA_FOLLOW * dt))
+    } else {
+      this.camera.position.copy(CAMERA_GOAL)
+      this.cameraPlaced = true
+    }
+
+    LOOK_AT.set(
+      position.x - sinH * LOOK_AHEAD,
+      position.y + LOOK_UP,
+      position.z - cosH * LOOK_AHEAD,
+    )
+    this.camera.lookAt(LOOK_AT)
   }
 
   /**
@@ -71,4 +95,16 @@ export class World {
 const SKY_COLOR = 0x1b2436
 const PICKUP_RIM_COLOR = 0xd9a441
 const RESCUE_RIM_COLOR = 0x5b8fd9
+
+/** Chase camera: how far behind the tail and above it sits, and how quickly it catches up. */
+const CAMERA_BACK = 28
+const CAMERA_UP = 11
+const CAMERA_FOLLOW = 5
+/** The camera looks a little ahead of the nose, so turns reveal where you are going. */
+const LOOK_AHEAD = 6
+const LOOK_UP = 1.5
+
+// Reused each frame so following allocates nothing.
+const CAMERA_GOAL = new THREE.Vector3()
+const LOOK_AT = new THREE.Vector3()
 const GRID_COLOR = 0x2f3d57

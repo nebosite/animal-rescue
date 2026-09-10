@@ -55,8 +55,21 @@ Rules that follow from it:
 
 ## Controls
 
-`W A S D` (or arrow keys) fly horizontally · `Space` climbs · `Shift` descends.
-Forward is -Z, away from the camera. The camera trails from behind and above.
+Arcade helicopter, not a simulator. Input sets a target lean, the lean eases
+in, and thrust comes from the lean — so it tips before it goes and drifts when
+released. Forward is wherever the nose points; the chase camera swings round
+behind the tail with a little lag.
+
+| | Keyboard | Controller (standard layout) |
+|---|---|---|
+| nose down / up (forward / back) | `W` `S` or `↑` `↓` | left stick up / down |
+| turn (yaw) | `A` `D` or `←` `→` | right stick, or `LB` `RB` |
+| slide (roll) | `Q` `E` | left stick left / right |
+| climb / descend (collective) | `Space` / `Shift` | `RT` / `LT` |
+
+Both devices are live at once and sum, clamped to full deflection. On the
+ground the skids grip: you lift off before you can move. The four axes are
+`FlightInput`; the feel lives in the constants at the bottom of `Helicopter.ts`.
 
 ## The loop so far
 
