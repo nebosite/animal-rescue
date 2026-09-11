@@ -49,13 +49,19 @@ export class KeyboardInput {
   }
 }
 
+/**
+ * Laid out like a real helicopter's three controls: the arrows (and W/S) are
+ * the cyclic — tip the machine and it goes that way; Q/E are the anti-torque
+ * pedals that swing the nose; A/Z (or CapsLock/Shift) are the collective, two
+ * vertically stacked keys under the left hand for up and down.
+ */
 const KEY_AXES = new Map<string, [keyof FlightInput, 1 | -1]>([
   ['KeyW', ['pitch', 1]], ['ArrowUp', ['pitch', 1]],
   ['KeyS', ['pitch', -1]], ['ArrowDown', ['pitch', -1]],
-  ['KeyA', ['yaw', -1]], ['ArrowLeft', ['yaw', -1]],
-  ['KeyD', ['yaw', 1]], ['ArrowRight', ['yaw', 1]],
-  ['KeyQ', ['roll', -1]],
-  ['KeyE', ['roll', 1]],
-  ['Space', ['collective', 1]],
-  ['ShiftLeft', ['collective', -1]], ['ShiftRight', ['collective', -1]],
+  ['ArrowLeft', ['roll', -1]],
+  ['ArrowRight', ['roll', 1]],
+  ['KeyQ', ['yaw', -1]],
+  ['KeyE', ['yaw', 1]],
+  ['KeyA', ['collective', 1]], ['CapsLock', ['collective', 1]],
+  ['KeyZ', ['collective', -1]], ['ShiftLeft', ['collective', -1]], ['ShiftRight', ['collective', -1]],
 ])

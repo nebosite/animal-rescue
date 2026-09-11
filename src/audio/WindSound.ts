@@ -33,13 +33,13 @@ export class WindSound {
   private readonly output: GainNode
   private readonly filter: BiquadFilterNode
 
-  constructor(engine: AudioEngine) {
+  constructor(engine: AudioEngine, destination: AudioNode = engine.master) {
     const ctx = engine.context
     this.context = ctx
 
     this.output = ctx.createGain()
     this.output.gain.value = 0
-    this.output.connect(engine.master)
+    this.output.connect(destination)
 
     // Gusts: a slow LFO that swings the level about ±30%.
     const gusting = ctx.createGain()

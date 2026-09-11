@@ -1,5 +1,6 @@
 import type { VoiceProfile } from '../game/AnimalProfile'
 import type { AudioEngine } from './AudioEngine'
+import type { Ducker } from './Ducker'
 import { createNoiseBuffer } from './NoiseBuffer'
 import type { Reverb } from './Reverb'
 
@@ -8,13 +9,16 @@ import type { Reverb } from './Reverb'
  * pitched blips in the speaker's own timbre, with gaps at the spaces, through
  * a radio-band filter and a crackle at the start. Nobody says words; everyone
  * clearly speaks.
+ *
+ * Speaking ducks the ambient beds, because a voice that merely adds to a
+ * running rotor is not heard at all.
  */
 export class VoiceBlips {
   private readonly context: AudioContext
   private readonly output: GainNode
   private readonly noise: AudioBuffer
 
-  constructor(engine: AudioEngine, reverb?: Reverb) {
+  constructor(engine: AudioEngine, reverb?: Reverb, private readonly ducker?: Ducker) {
     const ctx = engine.context
     this.context = ctx
     this.noise = createNoiseBuffer(ctx)
@@ -29,25 +33,53 @@ export class VoiceBlips {
     lowpass.type = 'lowpass'
     lowpass.frequency.value = 3400
 
+    // A touch of compression keeps every voice sitting at a similar level
+    // whatever its waveform and pitch.
+    const evenOut = ctx.createDynamicsCompressor()
+    evenOut.threshold.value = -20
+    evenOut.ratio.value = 4
+    evenOut.attack.value = 0.004
+    evenOut.release.value = 0.12
+
     this.output = ctx.createGain()
     this.output.connect(highpass)
     highpass.connect(lowpass)
-    lowpass.connect(engine.master)
+    lowpass.connect(evenOut)
+    evenOut.connect(engine.master)
 
     if (reverb) {
       const room = ctx.createGain()
       room.gain.value = 0.15
-      lowpass.connect(room)
+      evenOut.connect(room)
       room.connect(reverb.send)
     }
   }
 
+  /** How long the blips for a line will run, in seconds. */
+  static duration(voice: VoiceProfile, text: string): number {
+    let blips = 0
+    let parity = 0
+    let seconds = LEAD_IN
+    for (const char of text.slice(0, MAX_CHARS)) {
+      if (blips >= MAX_BLIPS) break
+      if (char === ' ') {
+        seconds += (1 / voice.rate) * 0.7
+        continue
+      }
+      if (parity++ % 2) continue
+      seconds += 1 / voice.rate
+      blips++
+    }
+    return seconds
+  }
+
   speak(voice: VoiceProfile, text: string): void {
     const now = this.context.currentTime
+    this.ducker?.duck(VoiceBlips.duration(voice, text) + DUCK_TAIL)
     this.crackle(now)
 
     const step = 1 / voice.rate
-    let at = now + 0.09
+    let at = now + LEAD_IN
     let blips = 0
     let parity = 0
     for (const char of text.slice(0, MAX_CHARS)) {
@@ -92,7 +124,7 @@ export class VoiceBlips {
     band.frequency.value = 2200
     band.Q.value = 0.9
     const envelope = this.context.createGain()
-    envelope.gain.setValueAtTime(0.09, at)
+    envelope.gain.setValueAtTime(0.22, at)
     envelope.gain.exponentialRampToValueAtTime(0.001, at + 0.07)
     source.connect(band)
     band.connect(envelope)
@@ -104,4 +136,8 @@ export class VoiceBlips {
 
 const MAX_CHARS = 60
 const MAX_BLIPS = 22
-const BLIP_VOLUME = 0.2
+/** Loud: the voice is the point of the moment it plays in. */
+const BLIP_VOLUME = 0.85
+const LEAD_IN = 0.09
+/** Keep the beds down a moment past the last blip. */
+const DUCK_TAIL = 0.25

@@ -16,6 +16,14 @@ describe('Controls', () => {
     expect(controls.usingGamepad).toBe(false)
   })
 
+  it('merges the collective from the keyboard with the controller triggers', () => {
+    const controls = new Controls(new GamepadInput(() => []))
+    controls.keyboard.press('KeyA', true)
+    expect(controls.poll().collective).toBe(1)
+    controls.keyboard.press('KeyZ', true)
+    expect(controls.poll().collective).toBe(0)
+  })
+
   it('merges keyboard and controller, clamped to full deflection', () => {
     const controls = new Controls(new GamepadInput(() => [pad([0, -1, 0, 0])]))
     controls.keyboard.press('KeyW', true)

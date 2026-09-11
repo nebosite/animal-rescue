@@ -172,8 +172,10 @@ function standingStatus(landedPad: LandingPad | null): string {
 
 // Reused so the render loop is not allocating a vector every frame.
 const PLACE = new THREE.Vector3()
-const WAITING_SCALE = 1.4
-const CARRY_SCALE = 0.9
+// Small enough to look like wildlife next to the helicopter rather than a
+// rival vehicle, while still readable from the chase camera.
+const WAITING_SCALE = 0.8
+const CARRY_SCALE = 0.55
 /** The skids reach about 1.55 below the helicopter; the load hangs a little clear of them. */
 const SKID_CLEARANCE = 1.0
 // Stood off to the side of the H, so the helicopter does not park on top of it.

@@ -14,7 +14,7 @@ export class AnimalBeacon {
   private readonly cadence = new Cadence(CALL_PERIOD)
   private call: CallProfile = DEFAULT_CALL
 
-  constructor(engine: AudioEngine, reverb?: Reverb) {
+  constructor(engine: AudioEngine, reverb?: Reverb, destination: AudioNode = engine.master) {
     this.context = engine.context
     // A gentle rolloff so the call carries from the far pad over a working
     // rotor, while the modest volume keeps it from swamping the mix up close —
@@ -26,7 +26,7 @@ export class AnimalBeacon {
       maxDistance: 400,
       rolloffFactor: 0.8,
     })
-    this.panner.connect(engine.master)
+    this.panner.connect(destination)
 
     // A far-off call in open country comes back off the hills: a strong send.
     if (reverb) {

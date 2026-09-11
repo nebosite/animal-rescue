@@ -1,6 +1,7 @@
 import type { Helicopter } from '../game/Helicopter'
 import { AnimalBeacon } from './AnimalBeacon'
 import type { AudioEngine } from './AudioEngine'
+import { Ducker } from './Ducker'
 import { Reverb } from './Reverb'
 import { RotorSound } from './RotorSound'
 import { SoundEffects } from './SoundEffects'
@@ -10,9 +11,13 @@ import { WindSound } from './WindSound'
 /**
  * Everything the game sounds like, driven from the game state once per frame.
  * Reads the flight model; never decides anything about it.
+ *
+ * The ambient beds — rotor, wind, the animal's call — run through a ducker, so
+ * anything said on the radio pushes them down and is actually heard.
  */
 export class Soundscape {
   readonly reverb: Reverb
+  readonly ducker: Ducker
   readonly rotor: RotorSound
   readonly wind: WindSound
   readonly beacon: AnimalBeacon
@@ -21,11 +26,12 @@ export class Soundscape {
 
   constructor(private readonly engine: AudioEngine) {
     this.reverb = new Reverb(engine)
-    this.rotor = new RotorSound(engine, this.reverb)
-    this.wind = new WindSound(engine)
-    this.beacon = new AnimalBeacon(engine, this.reverb)
+    this.ducker = new Ducker(engine.context, engine.master)
+    this.rotor = new RotorSound(engine, this.reverb, this.ducker.input)
+    this.wind = new WindSound(engine, this.ducker.input)
+    this.beacon = new AnimalBeacon(engine, this.reverb, this.ducker.input)
     this.effects = new SoundEffects(engine, this.reverb)
-    this.voice = new VoiceBlips(engine, this.reverb)
+    this.voice = new VoiceBlips(engine, this.reverb, this.ducker)
   }
 
   /** Call every frame. `animalPosition` is where a waiting animal is, or null. */

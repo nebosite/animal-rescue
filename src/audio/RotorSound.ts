@@ -44,13 +44,13 @@ export class RotorSound {
   private readonly chop: OscillatorNode
   private readonly whine: OscillatorNode
 
-  constructor(engine: AudioEngine, reverb?: Reverb) {
+  constructor(engine: AudioEngine, reverb?: Reverb, destination: AudioNode = engine.master) {
     const ctx = engine.context
     this.context = ctx
 
     this.output = ctx.createGain()
     this.output.gain.value = 0
-    this.output.connect(engine.master)
+    this.output.connect(destination)
 
     // A little of the rotor into the space gives it air without washing it out.
     if (reverb) {
