@@ -1,3 +1,4 @@
+import type { CallProfile } from '../game/AnimalProfile'
 import type { AudioEngine } from './AudioEngine'
 import { Cadence } from './Cadence'
 import type { Reverb } from './Reverb'
@@ -11,6 +12,7 @@ export class AnimalBeacon {
   private readonly context: AudioContext
   private readonly panner: PannerNode
   private readonly cadence = new Cadence(CALL_PERIOD)
+  private call: CallProfile = DEFAULT_CALL
 
   constructor(engine: AudioEngine, reverb?: Reverb) {
     this.context = engine.context
@@ -44,6 +46,11 @@ export class AnimalBeacon {
     }
   }
 
+  /** Give the beacon this animal's voice. */
+  setCall(call: CallProfile): void {
+    this.call = call
+  }
+
   /** Call from where the animal is; pass null while there is no animal to hear. */
   update(position: { x: number; y: number; z: number } | null, dt: number): void {
     if (!position) {
@@ -53,7 +60,7 @@ export class AnimalBeacon {
     }
 
     this.place(position)
-    if (this.cadence.advance(dt)) this.call()
+    if (this.cadence.advance(dt)) this.cry()
   }
 
   private place(position: { x: number; y: number; z: number }): void {
@@ -66,34 +73,40 @@ export class AnimalBeacon {
     }
   }
 
-  /** A short two-note bleat, falling in pitch. */
-  private call(): void {
+  /** The animal's own call — a yip, a hoot, a moan — repeated as its profile says. */
+  private cry(): void {
     const ctx = this.context
-    const now = ctx.currentTime
+    const { wave, fromHz, toHz, seconds, lowpassHz, repeats } = this.call
+    const gap = seconds + 0.08
 
-    const voice = ctx.createOscillator()
-    voice.type = 'sawtooth'
-    voice.frequency.setValueAtTime(620, now)
-    voice.frequency.exponentialRampToValueAtTime(470, now + 0.28)
+    for (let i = 0; i < repeats; i++) {
+      const at = ctx.currentTime + i * gap
 
-    const tone = ctx.createBiquadFilter()
-    tone.type = 'lowpass'
-    tone.frequency.value = 1400
+      const voice = ctx.createOscillator()
+      voice.type = wave
+      voice.frequency.setValueAtTime(fromHz, at)
+      voice.frequency.exponentialRampToValueAtTime(toHz, at + seconds)
 
-    const envelope = ctx.createGain()
-    envelope.gain.setValueAtTime(0, now)
-    envelope.gain.linearRampToValueAtTime(CALL_VOLUME, now + 0.02)
-    envelope.gain.setValueAtTime(CALL_VOLUME, now + 0.18)
-    envelope.gain.linearRampToValueAtTime(0, now + 0.38)
+      const tone = ctx.createBiquadFilter()
+      tone.type = 'lowpass'
+      tone.frequency.value = lowpassHz
 
-    voice.connect(tone)
-    tone.connect(envelope)
-    envelope.connect(this.panner)
-    voice.start(now)
-    voice.stop(now + 0.4)
+      const envelope = ctx.createGain()
+      envelope.gain.setValueAtTime(0, at)
+      envelope.gain.linearRampToValueAtTime(CALL_VOLUME, at + 0.02)
+      envelope.gain.setValueAtTime(CALL_VOLUME, at + seconds * 0.6)
+      envelope.gain.linearRampToValueAtTime(0, at + seconds + 0.05)
+
+      voice.connect(tone)
+      tone.connect(envelope)
+      envelope.connect(this.panner)
+      voice.start(at)
+      voice.stop(at + seconds + 0.07)
+    }
   }
 }
 
 /** Seconds between calls. */
 const CALL_PERIOD = 1.8
 const CALL_VOLUME = 0.45
+const DEFAULT_CALL: CallProfile = { wave: 'sawtooth', fromHz: 620, toHz: 470, seconds: 0.28, lowpassHz: 1400, repeats: 1 }

@@ -36,7 +36,7 @@ export class Hud {
 
     if (score !== this.renderedScore) {
       this.renderedScore = score
-      this.scoreElement.textContent = `RESCUED ${score}`
+      this.scoreElement.textContent = `SCORE ${score}`
     }
   }
 

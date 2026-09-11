@@ -26,6 +26,8 @@ export class Helicopter {
 
   /** True on the one update in which the skids touched down. */
   justLanded = false
+  /** How fast it was descending when the skids touched, units per second. Set with justLanded. */
+  impactSpeed = 0
   /** True on any update in which the helicopter was pushed back by a limit. */
   justBumped = false
 
@@ -66,10 +68,15 @@ export class Helicopter {
     this.lean(input, onGround, dt)
     this.applyThrust(onGround, dt)
     this.applyCollective(input.collective, dt)
+    // Remembered before the ground clamp zeroes it, so a landing knows how hard it was.
+    const descentRate = -this.velocity.y
     this.integrate(dt)
     this.stayInBounds()
 
-    if (this.isOnGround && !this.wasOnGround) this.justLanded = true
+    if (this.isOnGround && !this.wasOnGround) {
+      this.justLanded = true
+      this.impactSpeed = Math.max(0, descentRate)
+    }
     this.wasOnGround = this.isOnGround
   }
 

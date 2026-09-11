@@ -93,11 +93,21 @@ ground the skids grip: you lift off before you can move. The four axes are
 
 ## The loop so far
 
-An animal waits at the amber pickup pad. Land there to take it aboard, fly to
-the blue rescue pad, and land again to deliver it for a point. Another animal
-is waiting immediately, so the loop repeats. The rules live in `Rescue`, which
-is told where the helicopter landed and decides whether anything happened —
-so calling it every frame while parked is harmless.
+A named animal from the roster (`AnimalProfile.ts`) waits at the amber pickup
+pad, calling in its own voice. Land there to take it aboard, fly to the blue
+rescue pad, and land again to deliver it for its value in points. The next
+animal is waiting immediately, in roster order, so the loop repeats.
+
+Flying roughly costs you. `Handling` watches the flight model for a hard
+touchdown, a held steep bank, or a bump against the edge, with thresholds set
+by whoever is judging: the passenger's fussiness while carrying (Duchess
+objects to a full-stick slide; Gus sleeps through a banked turn), or the
+Chief's when empty. Each scolding docks a point of that animal's credit, never
+below one. `Announcer` turns events into radio lines from the profiles, cycling
+variants; `RadioPanel` shows them and `VoiceBlips` gives each speaker an
+Animal-Crossing-style blip voice. The rules live in `Rescue`, which is told
+where the helicopter landed and decides whether anything happened — so calling
+it every frame while parked is harmless.
 
 ## Sound
 

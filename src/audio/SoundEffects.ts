@@ -1,5 +1,5 @@
 import type { AudioEngine } from './AudioEngine'
-import { Cooldown } from './Cooldown'
+import { Cooldown } from '../game/Cooldown'
 import { createNoiseBuffer } from './NoiseBuffer'
 import type { Reverb } from './Reverb'
 

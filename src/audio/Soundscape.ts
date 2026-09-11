@@ -4,6 +4,7 @@ import type { AudioEngine } from './AudioEngine'
 import { Reverb } from './Reverb'
 import { RotorSound } from './RotorSound'
 import { SoundEffects } from './SoundEffects'
+import { VoiceBlips } from './VoiceBlips'
 import { WindSound } from './WindSound'
 
 /**
@@ -16,6 +17,7 @@ export class Soundscape {
   readonly wind: WindSound
   readonly beacon: AnimalBeacon
   readonly effects: SoundEffects
+  readonly voice: VoiceBlips
 
   constructor(private readonly engine: AudioEngine) {
     this.reverb = new Reverb(engine)
@@ -23,6 +25,7 @@ export class Soundscape {
     this.wind = new WindSound(engine)
     this.beacon = new AnimalBeacon(engine, this.reverb)
     this.effects = new SoundEffects(engine, this.reverb)
+    this.voice = new VoiceBlips(engine, this.reverb)
   }
 
   /** Call every frame. `animalPosition` is where a waiting animal is, or null. */

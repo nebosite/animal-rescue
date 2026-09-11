@@ -123,6 +123,23 @@ describe('Helicopter flight model', () => {
     expect(landings).toBe(1)
   })
 
+  it('reports how hard it touched down', () => {
+    const hard = fresh()
+    const soft = fresh()
+    let hardImpact = 0
+    let softImpact = 0
+    for (let i = 0; i < 300; i++) {
+      hard.update({ ...noInput(), collective: -1 }, 1 / 60)
+      if (hard.justLanded) hardImpact = hard.impactSpeed
+      soft.update({ ...noInput(), collective: -0.3 }, 1 / 60)
+      if (soft.justLanded) softImpact = soft.impactSpeed
+    }
+    expect(hard.isOnGround).toBe(true)
+    expect(soft.isOnGround).toBe(true)
+    expect(hardImpact).toBeGreaterThan(6)
+    expect(softImpact).toBeLessThan(4)
+  })
+
   it('grips the ground: landed, it will not slide off under stick input', () => {
     const helicopter = fly(fresh(), { collective: -1 }, 3)
     const parked = helicopter.position.clone()

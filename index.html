@@ -38,6 +38,18 @@
       #volume { width: 96px; accent-color: #5fd39a; cursor: pointer; }
       #status.is-visible { opacity: 1; }
       #status.is-flash { background: #f0c674; }
+      #radio {
+        position: fixed; left: 50%; bottom: 52px; transform: translateX(-50%);
+        max-width: min(680px, calc(100vw - 32px));
+        font: 15px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: #e6ecf7; background: rgba(20, 27, 41, 0.86);
+        border: 1px solid rgba(143, 162, 196, 0.35); border-radius: 10px;
+        padding: 10px 16px; opacity: 0; transition: opacity 160ms ease;
+        pointer-events: none; user-select: none;
+      }
+      #radio.is-visible { opacity: 1; }
+      #radio-speaker { font-weight: 700; letter-spacing: 0.08em; margin-right: 10px; color: #f0c674; }
+      #radio[data-speaker="chief"] #radio-speaker { color: #ff9f6b; }
       #score {
         position: fixed; right: 18px; top: 16px;
         font: 600 14px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -48,7 +60,8 @@
     </style>
   </head>
   <body>
-    <div id="score">RESCUED 0</div>
+    <div id="score">SCORE 0</div>
+    <div id="radio" aria-live="polite"><span id="radio-speaker"></span><span id="radio-text"></span></div>
     <div id="audio-controls">
       <button id="mute" type="button" aria-label="Mute">🔊</button>
       <input id="volume" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume" />
