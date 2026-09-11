@@ -141,7 +141,14 @@ export const ROSTER: readonly AnimalProfile[] = [
 
 /** The boss on the radio. Cares about the animals, and about the paint. */
 export const CHIEF: SpeakerProfile & {
-  lines: { welcome: string[]; hardLanding: string[]; bump: string[] }
+  lines: {
+    welcome: string[]
+    hardLanding: string[]
+    bump: string[]
+    scorched: string[]
+    grounded: string[]
+    repaired: string[]
+  }
 } = {
   name: 'Chief',
   voice: { wave: 'square', baseHz: 190, spread: 0.18, rate: 10 },
@@ -149,6 +156,21 @@ export const CHIEF: SpeakerProfile & {
     welcome: ['Chief here. New paint on that bird. NEW. PAINT.', "Bring 'em home, and bring my helicopter home prettier than you found it."],
     hardLanding: ["THAT'S MY PAINT JOB!", 'Do you know what a skid costs? I do.', 'Landing, not crashing. Say it with me.'],
     bump: ['Was that a scratch? That sounded like a scratch.', 'The sky is very large. Try staying in it.'],
+    scorched: [
+      'THE FIRE. NOT INTO THE FIRE. Over it or around it!',
+      'That is my clear coat blistering. GET OUT OF THERE.',
+      'Paint burns, pilot. Paint BURNS.',
+    ],
+    grounded: [
+      "That's it — I'm flying her home myself. Hands off.",
+      'Autopilot engaged. Sit there and think about what you have done.',
+      "She's a cinder. Bringing her in. Do not touch anything.",
+    ],
+    repaired: [
+      'Buffed out. Barely. Try to keep her shiny this time.',
+      'New paint. Again. Go on, the animals are waiting.',
+      "Good as new. I said NEW. Don't make me say it a third time.",
+    ],
   },
 }
 

@@ -7,6 +7,9 @@ import { LandingPad } from './game/LandingPad'
 import { Rescue } from './game/Rescue'
 import { Handling } from './game/Handling'
 import { Announcer } from './game/Announcer'
+import { Airframe } from './game/Airframe'
+import { Autopilot } from './game/Autopilot'
+import { Cooldown } from './game/Cooldown'
 import { CHIEF_FUSSINESS } from './game/AnimalProfile'
 import { AudioEngine } from './audio/AudioEngine'
 import { Soundscape } from './audio/Soundscape'
@@ -27,10 +30,16 @@ const hud = new Hud(
   document.getElementById('controls-hint')!,
   document.getElementById('compass')!,
   document.getElementById('range')!,
+  document.getElementById('integrity-bar')!,
+  document.getElementById('integrity')!,
 )
 const rescue = new Rescue(world.pickupPad, world.rescuePad)
 const handling = new Handling()
 const announcer = new Announcer()
+const airframe = new Airframe()
+const autopilot = new Autopilot()
+// The Chief shouts about the fire, but not sixty times a second.
+const fireWarning = new Cooldown(4)
 
 // Sound can only begin after a key press or click, so the soundscape is built
 // the moment the browser lets the engine start.
@@ -64,6 +73,8 @@ if (import.meta.env.DEV) {
     controls,
     rescue,
     world,
+    airframe,
+    autopilot,
     get soundscape() { return soundscape },
   }
 }
@@ -94,32 +105,31 @@ renderer.setAnimationLoop(() => {
   const dt = Math.min(timer.getDelta(), 0.1)
 
   const ground = world.terrain.heightAt(helicopter.position.x, helicopter.position.z)
-  helicopter.update(controls.poll(), dt, ground)
+  burn(ground, dt)
+
+  // Once the machine is wrecked the pilot loses the controls and the Chief
+  // flies it home — the game's way of saying "enough" without destroying it.
+  const flying = airframe.needsRepair
+    ? autopilot.update(helicopter, world.rescuePad.position, ground)
+    : controls.poll()
+  helicopter.update(flying, dt, ground)
+
   world.helicopter.moveTo(helicopter.position)
   world.helicopter.setAttitude(helicopter.heading, helicopter.pitch, helicopter.roll)
   world.helicopter.spin(dt)
   world.follow(helicopter.position, helicopter.heading, dt)
+  world.updateFire(timer.getElapsed())
 
   const landedPad = LandingPad.landedOn(world.pads, helicopter.position, helicopter.isOnGround)
   world.highlightPad(landedPad)
 
   // Judged before the pickup or delivery is processed, so a landing is blamed
   // on whoever was actually aboard during it: the passenger, or the paint.
-  handling.setFussiness(rescue.carrying ? rescue.animal.fussiness : CHIEF_FUSSINESS)
-  const rough = handling.update(helicopter, dt)
-  if (rough) {
-    if (rescue.carrying) {
-      rescue.scold()
-      radio.say(announcer.scolded(rescue.animal))
-    } else {
-      const line = announcer.chiefOnRoughFlying(rough)
-      if (line) radio.say(line)
-    }
-  }
+  judgeFlying(landedPad, dt)
 
   switch (rescue.landedOn(landedPad)) {
     case 'picked-up':
-      hud.flash(`${rescue.animal.name.toUpperCase()} ABOARD — TO THE RESCUE PAD`)
+      hud.flash(`${rescue.animal.name.toUpperCase()} ABOARD — TO THE RESCUE BASE`)
       soundscape?.pickedUp()
       radio.say(announcer.pickedUp(rescue.animal))
       break
@@ -138,10 +148,56 @@ renderer.setAnimationLoop(() => {
   soundscape?.frame(helicopter, rescue.animalWaiting ? WAITING_SPOT : null, dt)
   radio.update(dt)
   hud.showGamepad(controls.usingGamepad)
+  hud.setIntegrity(airframe.integrity)
   hud.update(standingStatus(landedPad), rescue.score)
 
   renderer.render(world.scene, world.camera)
 })
+
+/** Take fire damage, and repair on the base pad. */
+function burn(ground: number, dt: number): void {
+  fireWarning.advance(dt)
+
+  const wasGrounded = airframe.needsRepair
+  const altitude = helicopter.position.y - (ground + SKID_HEIGHT)
+  const heat = world.fire.heatAt(helicopter.position.x, helicopter.position.z, altitude)
+
+  if (heat > 0) {
+    airframe.scorch(heat, dt)
+    if (!airframe.needsRepair && fireWarning.tryFire()) radio.say(announcer.scorched())
+  }
+
+  if (airframe.needsRepair && !wasGrounded) {
+    hud.flash('AIRFRAME CRITICAL — AUTOPILOT RETURNING TO BASE')
+    radio.say(announcer.grounded())
+  }
+
+  // Sitting on the base pad puts it right.
+  if (airframe.needsRepair && helicopter.isOnGround && world.rescuePad.covers(helicopter.position)) {
+    airframe.repair()
+    hud.flash('REPAIRED — BACK IN THE AIR')
+    radio.say(announcer.repaired())
+  }
+}
+
+/** Let whoever is judging comment on the flying — unless the Chief is flying. */
+function judgeFlying(landedPad: LandingPad | null, dt: number): void {
+  handling.setFussiness(rescue.carrying ? rescue.animal.fussiness : CHIEF_FUSSINESS)
+  const rough = handling.update(helicopter, dt)
+  if (!rough || airframe.needsRepair) return
+
+  // A knock costs a little paint as well as a telling-off.
+  if (rough !== 'steep-bank') airframe.scuff()
+
+  if (rescue.carrying) {
+    rescue.scold()
+    radio.say(announcer.scolded(rescue.animal))
+    return
+  }
+  const line = announcer.chiefOnRoughFlying(rough)
+  if (line) radio.say(line)
+  void landedPad
+}
 
 /** Dress the model and the beacon as whichever animal is up next. */
 function presentAnimal(): void {
@@ -171,6 +227,7 @@ function placeAnimal(): void {
 }
 
 function standingStatus(landedPad: LandingPad | null): string {
+  if (airframe.needsRepair) return `AUTOPILOT — ${autopilot.phase.toUpperCase()} TO BASE`
   if (landedPad) return `LANDED — ${landedPad.label.toUpperCase()}`
   if (rescue.carrying) return `CARRYING ${rescue.animal.name.toUpperCase()}`
   // Controller-only players never press a key, so tell them sound is waiting on one.
@@ -180,7 +237,7 @@ function standingStatus(landedPad: LandingPad | null): string {
 
 /** Point the compass at wherever the pilot should be heading next. */
 function updateCourse(): void {
-  const target = rescue.carrying ? world.rescuePad.position : world.pickupPad.position
+  const target = rescue.carrying || airframe.needsRepair ? world.rescuePad.position : world.pickupPad.position
   const dx = target.x - helicopter.position.x
   const dz = target.z - helicopter.position.z
   // The heading that would put the nose on the target, minus where it is now.
@@ -196,6 +253,8 @@ const WAITING_SCALE = 0.8
 const CARRY_SCALE = 0.55
 /** The skids reach about 1.55 below the helicopter; the load hangs a little clear of them. */
 const SKID_CLEARANCE = 1.0
+/** Matches the flight model: how far the skids hold the hull off the ground. */
+const SKID_HEIGHT = 2
 // Stood off to the side of the H, so the helicopter does not park on top of it.
 const PAD_DECK_OFFSET = new THREE.Vector3(-4.6, 0.25, 1.8)
 // Where the waiting animal stands in the world — also where its call comes from.

@@ -42,6 +42,21 @@ export class Announcer {
     return null
   }
 
+  /** The Chief watching his paint blister. */
+  scorched(): RadioLine {
+    return this.chief(this.pick('chief.scorched', CHIEF.lines.scorched))
+  }
+
+  /** The Chief taking the controls off you. */
+  grounded(): RadioLine {
+    return this.chief(this.pick('chief.grounded', CHIEF.lines.grounded))
+  }
+
+  /** The Chief handing a mended helicopter back. */
+  repaired(): RadioLine {
+    return this.chief(this.pick('chief.repaired', CHIEF.lines.repaired))
+  }
+
   private animal(animal: AnimalProfile, text: string): RadioLine {
     return { speaker: animal.name, text, voice: animal.voice }
   }

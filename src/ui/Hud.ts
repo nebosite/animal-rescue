@@ -12,6 +12,7 @@ export class Hud {
   private renderedScore = -1
 
   private renderedRange = -1
+  private renderedIntegrity = -1
 
   constructor(
     private readonly statusElement: HTMLElement,
@@ -19,7 +20,22 @@ export class Hud {
     private readonly hintElement: HTMLElement,
     private readonly compassElement?: HTMLElement,
     private readonly rangeElement?: HTMLElement,
+    private readonly integrityBar?: HTMLElement,
+    private readonly integrityPanel?: HTMLElement,
   ) {}
+
+  /** Show how much helicopter is left, 1 down to 0. */
+  setIntegrity(integrity: number): void {
+    const percent = Math.round(integrity * 100)
+    if (percent === this.renderedIntegrity) return
+    this.renderedIntegrity = percent
+
+    if (this.integrityBar) this.integrityBar.style.width = `${percent}%`
+    if (this.integrityPanel) {
+      // Three bands, so the state is readable at a glance rather than by degree.
+      this.integrityPanel.dataset.state = percent <= 25 ? 'critical' : percent < 60 ? 'hurt' : 'fine'
+    }
+  }
 
   /**
    * Point the compass at wherever the pilot should be heading and show the

@@ -23,6 +23,22 @@
         opacity: 0; transition: opacity 140ms ease;
         pointer-events: none; user-select: none;
       }
+      #integrity {
+        position: fixed; right: 18px; top: 134px;
+        width: 148px; background: rgba(20, 27, 41, 0.72);
+        padding: 8px 12px 10px; border-radius: 8px;
+        font: 600 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+        letter-spacing: 0.14em; color: #8fa2c4;
+        pointer-events: none; user-select: none;
+      }
+      #integrity-track {
+        margin-top: 7px; height: 6px; border-radius: 3px;
+        background: rgba(143, 162, 196, 0.25); overflow: hidden;
+      }
+      #integrity-bar { height: 100%; width: 100%; background: #5fd39a; transition: width 140ms linear, background 200ms ease; }
+      #integrity[data-state="hurt"] #integrity-bar { background: #f0c674; }
+      #integrity[data-state="critical"] #integrity-bar { background: #e8643c; }
+      #integrity[data-state="critical"] { color: #ffb4a0; }
       #course {
         position: fixed; right: 18px; top: 96px;
         display: flex; align-items: center; gap: 10px;
@@ -71,6 +87,7 @@
   <body>
     <div id="score">SCORE 0</div>
     <div id="course"><span id="compass">▲</span><span id="range">0 m</span></div>
+    <div id="integrity" data-state="fine">AIRFRAME<div id="integrity-track"><div id="integrity-bar"></div></div></div>
     <div id="radio" aria-live="polite"><span id="radio-speaker"></span><span id="radio-text"></span></div>
     <div id="audio-controls">
       <button id="mute" type="button" aria-label="Mute">🔊</button>

@@ -34,6 +34,16 @@ describe('Announcer', () => {
     expect(announcer.chiefOnRoughFlying('steep-bank')).toBeNull()
   })
 
+  it('has the Chief cover the fire, the grounding and the repair', () => {
+    const announcer = new Announcer()
+    for (const line of [announcer.scorched(), announcer.grounded(), announcer.repaired()]) {
+      expect(line.speaker).toBe(CHIEF.name)
+      expect(line.text.length).toBeGreaterThan(0)
+      expect(line.voice).toBe(CHIEF.voice)
+    }
+    expect(CHIEF.lines.scorched).toContain(new Announcer().scorched().text)
+  })
+
   it('gives every animal in the roster something to say at each moment', () => {
     for (const animal of ROSTER) {
       for (const lines of Object.values(animal.lines)) expect(lines.length).toBeGreaterThan(0)

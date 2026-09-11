@@ -80,12 +80,16 @@ in, and thrust comes from the lean — so it tips before it goes and drifts when
 released. Forward is wherever the nose points; the chase camera swings round
 behind the tail with a little lag.
 
+Laid out like the real thing: the arrows are the cyclic, `Q`/`E` are the
+anti-torque pedals, and `A`/`Z` are the collective — two stacked keys under
+the left hand.
+
 | | Keyboard | Controller (standard layout) |
 |---|---|---|
 | nose down / up (forward / back) | `W` `S` or `↑` `↓` | left stick up / down |
-| turn (yaw) | `A` `D` or `←` `→` | right stick, or `LB` `RB` |
-| slide (roll) | `Q` `E` | left stick left / right |
-| climb / descend (collective) | `Space` / `Shift` | `RT` / `LT` |
+| slide (roll) | `←` `→` | left stick left / right |
+| turn (yaw) | `Q` `E` | right stick, or `LB` `RB` |
+| climb / descend (collective) | `A` or `CapsLock` / `Z` or `Shift` | `RT` / `LT` |
 
 Both devices are live at once and sum, clamped to full deflection. On the
 ground the skids grip: you lift off before you can move. The four axes are
@@ -110,6 +114,20 @@ this size the target is well past the fog.
 `Forest` scatters trees deterministically and rejects them on steep ground,
 above the treeline, in the canyon, and inside clearings — which is what
 leaves natural landing spots rather than a uniform carpet. Two draw calls.
+
+## Fire and damage
+
+A front of burning patches (`Fire.ts`) lies across the run between the pads,
+so every trip is a decision: go round, or climb over. Heat thins with height —
+the column reaches 85 above the ground — so climbing over is real but costly.
+
+Fire harms only the machine, never anything alive. `Airframe` tracks integrity:
+about three seconds in the flames wrecks it, with a second or so of warning
+first, and knocks cost a little paint. Below a quarter the pilot loses the
+controls and `Autopilot` flies it home — climb, cruise, land — and the base pad
+repairs it. The autopilot emits ordinary `FlightInput`, so it flies through the
+same flight model with no special cases, and is tested by simply letting it fly
+from anywhere on the map and seeing where it ends up.
 
 ## The loop so far
 

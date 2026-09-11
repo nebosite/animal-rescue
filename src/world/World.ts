@@ -6,6 +6,8 @@ import { AnimalModel } from './AnimalModel'
 import { Terrain } from '../game/Terrain'
 import { TerrainMesh } from './TerrainMesh'
 import { Forest } from './Forest'
+import { Fire } from '../game/Fire'
+import { FireField } from './FireField'
 import { FIELD_LIMIT } from '../game/Helicopter'
 
 /**
@@ -25,8 +27,10 @@ export class World {
   readonly rescuePad: LandingPad
   readonly pickupPad: LandingPad
   readonly pads: readonly LandingPad[]
+  readonly fire: Fire
 
   private cameraPlaced = false
+  private readonly fireField: FireField
   private readonly padModels: Map<LandingPad, LandingPadModel>
 
   constructor() {
@@ -64,8 +68,19 @@ export class World {
     const clearings = this.pads.map((pad) => ({ x: pad.position.x, z: pad.position.z, radius: pad.radius * 2.2 }))
     this.scene.add(new Forest(this.terrain, clearings).group)
 
+    // The fire lies across the run between the pads, so every trip is a
+    // decision: go round, or climb over it.
+    this.fire = Fire.frontBetween(this.rescuePad.position, this.pickupPad.position)
+    this.fireField = new FireField(this.fire, this.terrain)
+    this.scene.add(this.fireField.group)
+
     this.scene.add(this.animal.group)
     this.scene.add(this.helicopter.group)
+  }
+
+  /** Flicker the flames and roll the smoke. `elapsed` is seconds since start. */
+  updateFire(elapsed: number): void {
+    this.fireField.update(elapsed)
   }
 
   /** Light up whichever pad the helicopter is standing on, and only that one. */
