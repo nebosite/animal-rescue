@@ -91,6 +91,26 @@ Both devices are live at once and sum, clamped to full deflection. On the
 ground the skids grip: you lift off before you can move. The four axes are
 `FlightInput`; the feel lives in the constants at the bottom of `Helicopter.ts`.
 
+## The world
+
+840 x 840 units of procedural land (`Terrain.ts`) — rolling hills, a winding
+canyon cut through them, and a conifer forest. It is a pure function of
+position: the same coordinates always give the same height, so there is no
+seed file and nothing to load. `TerrainMesh` is only its picture; the flight
+model asks `heightAt` for the ground under the helicopter each frame, so the
+skids settle on a hilltop as readily as in the valley.
+
+Pads are placed by *searching* the hills rather than by hard-coded numbers:
+`World.levelSpot` finds the highest (or lowest) landable, canyon-free ground
+near a rough location, levels a shelf there, and blends it back into the
+slope. The base sits low, the pickup high, about 645 units apart — a real
+flight. A HUD compass and range point at whichever you need next, because at
+this size the target is well past the fog.
+
+`Forest` scatters trees deterministically and rejects them on steep ground,
+above the treeline, in the canyon, and inside clearings — which is what
+leaves natural landing spots rather than a uniform carpet. Two draw calls.
+
 ## The loop so far
 
 A named animal from the roster (`AnimalProfile.ts`) waits at the amber pickup

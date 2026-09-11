@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { Helicopter } from './Helicopter'
+import { FIELD_LIMIT, Helicopter } from './Helicopter'
 import { noInput, type FlightInput } from './FlightInput'
 
 /** Fly with the given axes held for `seconds`, stepping at 60 Hz. */
@@ -161,12 +161,35 @@ describe('Helicopter flight model', () => {
     const helicopter = fresh()
     let bumped = false
     const input = { ...noInput(), roll: 1 }
-    for (let i = 0; i < 60 * 20; i++) {
+    for (let i = 0; i < 60 * 60; i++) {
       helicopter.update(input, 1 / 60)
       bumped ||= helicopter.justBumped
     }
-    expect(helicopter.position.x).toBeLessThanOrEqual(140)
+    expect(helicopter.position.x).toBeLessThanOrEqual(FIELD_LIMIT)
     expect(bumped).toBe(true)
+  })
+
+  it('rests on the ground it is told about, not a fixed floor', () => {
+    const hilltop = fresh()
+    for (let i = 0; i < 600; i++) hilltop.update({ ...noInput(), collective: -1 }, 1 / 60, 60)
+    expect(hilltop.isOnGround).toBe(true)
+    expect(hilltop.position.y).toBeCloseTo(62, 1)
+    expect(hilltop.altitudeAboveGround).toBeCloseTo(0, 1)
+
+    const valley = fresh()
+    for (let i = 0; i < 600; i++) valley.update({ ...noInput(), collective: -1 }, 1 / 60, -30)
+    expect(valley.isOnGround).toBe(true)
+    expect(valley.position.y).toBeCloseTo(-28, 1)
+  })
+
+  it('is pushed up when the ground rises underneath it', () => {
+    const helicopter = fresh()
+    for (let i = 0; i < 120; i++) helicopter.update(noInput(), 1 / 60, 0)
+    const before = helicopter.position.y
+    // Fly over a hill that rises to 40: the skids ride up over it.
+    for (let i = 0; i < 120; i++) helicopter.update(noInput(), 1 / 60, 40)
+    expect(helicopter.position.y).toBeGreaterThan(before)
+    expect(helicopter.position.y).toBeCloseTo(42, 1)
   })
 
   it('works harder when climbing and leaning than when hovering', () => {

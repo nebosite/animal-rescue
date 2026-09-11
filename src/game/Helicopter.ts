@@ -35,12 +35,24 @@ export class Helicopter {
   /** The stick-driven part of the roll, before the cosmetic turn-bank is added. */
   private leanRoll = 0
   private wasOnGround = false
+  /** Terrain height under the helicopter, as told to the last update. */
+  private ground = 0
   private readonly steer = new THREE.Vector2()
   private readonly thrust = new THREE.Vector3()
 
+  /** The lowest the helicopter can be here: skids resting on the ground. */
+  get restingAltitude(): number {
+    return this.ground + SKID_HEIGHT
+  }
+
+  /** Height of the skids above the ground below. */
+  get altitudeAboveGround(): number {
+    return this.position.y - this.restingAltitude
+  }
+
   /** True when the helicopter is resting on the ground rather than flying. */
   get isOnGround(): boolean {
-    return this.position.y <= MIN_ALTITUDE + GROUND_TOLERANCE
+    return this.position.y <= this.restingAltitude + GROUND_TOLERANCE
   }
 
   /** Ground speed in units per second. */
@@ -59,7 +71,13 @@ export class Helicopter {
     return Math.min(1, 0.55 * lean + 0.45 * climb + 0.3 * turn)
   }
 
-  update(input: FlightInput, dt: number): void {
+  /**
+   * Step the flight model. `groundHeight` is the terrain under the helicopter
+   * right now — the model clamps to it rather than to a fixed floor, so the
+   * skids settle on a hilltop as readily as on the valley floor.
+   */
+  update(input: FlightInput, dt: number, groundHeight = 0): void {
+    this.ground = groundHeight
     this.justLanded = false
     this.justBumped = false
     const onGround = this.isOnGround
@@ -146,8 +164,8 @@ export class Helicopter {
     const p = this.position
     const v = this.velocity
 
-    if (p.y < MIN_ALTITUDE) {
-      p.y = MIN_ALTITUDE
+    if (p.y < this.restingAltitude) {
+      p.y = this.restingAltitude
       if (v.y < 0) v.y = 0
     } else if (p.y > MAX_ALTITUDE) {
       p.y = MAX_ALTITUDE
@@ -172,9 +190,11 @@ function approach(value: number, target: number, rate: number, dt: number): numb
 }
 
 const START_ALTITUDE = 8
-const MIN_ALTITUDE = 2
-const MAX_ALTITUDE = 90
-const FIELD_LIMIT = 140
+/** How far the skids hold the hull above whatever is underneath. */
+const SKID_HEIGHT = 2
+const MAX_ALTITUDE = 220
+/** Half the width of the playable map. */
+export const FIELD_LIMIT = 420
 const GROUND_TOLERANCE = 0.05
 
 /** Full-stick lean, radians. About 22° nose-down and 24° of bank. */

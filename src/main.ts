@@ -15,6 +15,8 @@ import { RadioPanel } from './ui/RadioPanel'
 
 const world = new World()
 const helicopter = new Helicopter()
+// Start on the base pad, which is wherever the hills put it.
+helicopter.position.set(world.rescuePad.position.x, world.rescuePad.position.y + 8, world.rescuePad.position.z)
 
 const controls = new Controls()
 controls.attach(window)
@@ -23,6 +25,8 @@ const hud = new Hud(
   document.getElementById('status')!,
   document.getElementById('score')!,
   document.getElementById('controls-hint')!,
+  document.getElementById('compass')!,
+  document.getElementById('range')!,
 )
 const rescue = new Rescue(world.pickupPad, world.rescuePad)
 const handling = new Handling()
@@ -59,6 +63,7 @@ if (import.meta.env.DEV) {
     helicopter,
     controls,
     rescue,
+    world,
     get soundscape() { return soundscape },
   }
 }
@@ -88,7 +93,8 @@ renderer.setAnimationLoop(() => {
   // Cap dt so a long stall cannot teleport the helicopter across the map.
   const dt = Math.min(timer.getDelta(), 0.1)
 
-  helicopter.update(controls.poll(), dt)
+  const ground = world.terrain.heightAt(helicopter.position.x, helicopter.position.z)
+  helicopter.update(controls.poll(), dt, ground)
   world.helicopter.moveTo(helicopter.position)
   world.helicopter.setAttitude(helicopter.heading, helicopter.pitch, helicopter.roll)
   world.helicopter.spin(dt)
@@ -128,6 +134,7 @@ renderer.setAnimationLoop(() => {
   }
 
   placeAnimal()
+  updateCourse()
   soundscape?.frame(helicopter, rescue.animalWaiting ? WAITING_SPOT : null, dt)
   radio.update(dt)
   hud.showGamepad(controls.usingGamepad)
@@ -144,16 +151,17 @@ function presentAnimal(): void {
 
 /**
  * Draw the animal wherever it currently is: waiting on the pad, or slung under
- * the helicopter. A slung load hangs well below the skids, so it is only drawn
- * once the helicopter is high enough for it to clear the ground — which means
- * it appears as you lift off and tucks away as you settle.
+ * the helicopter. A slung load hangs below the skids, so it is only drawn once
+ * the helicopter is high enough for it to clear the ground — which means it
+ * appears as you lift off and tucks away as you settle.
  */
 function placeAnimal(): void {
   if (rescue.carrying) {
     world.animal.setScale(CARRY_SCALE)
     const slingDrop = world.animal.height + SKID_CLEARANCE
-    world.animal.moveTo(PLACE.copy(helicopter.position).setY(helicopter.position.y - slingDrop))
-    world.animal.setVisible(helicopter.position.y - slingDrop > 0)
+    const slungY = helicopter.position.y - slingDrop
+    world.animal.moveTo(PLACE.copy(helicopter.position).setY(slungY))
+    world.animal.setVisible(slungY > world.terrain.heightAt(helicopter.position.x, helicopter.position.z))
     return
   }
 
@@ -168,6 +176,16 @@ function standingStatus(landedPad: LandingPad | null): string {
   // Controller-only players never press a key, so tell them sound is waiting on one.
   if (!audio.started) return 'PRESS ANY KEY OR CLICK FOR SOUND'
   return `${rescue.animal.name.toUpperCase()} THE ${rescue.animal.species.toUpperCase()} IS WAITING — FOLLOW THE CALL`
+}
+
+/** Point the compass at wherever the pilot should be heading next. */
+function updateCourse(): void {
+  const target = rescue.carrying ? world.rescuePad.position : world.pickupPad.position
+  const dx = target.x - helicopter.position.x
+  const dz = target.z - helicopter.position.z
+  // The heading that would put the nose on the target, minus where it is now.
+  const bearing = Math.atan2(-dx, -dz) - helicopter.heading
+  hud.setCourse(Math.atan2(Math.sin(bearing), Math.cos(bearing)), Math.hypot(dx, dz))
 }
 
 // Reused so the render loop is not allocating a vector every frame.

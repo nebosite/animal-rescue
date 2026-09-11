@@ -23,6 +23,15 @@
         opacity: 0; transition: opacity 140ms ease;
         pointer-events: none; user-select: none;
       }
+      #course {
+        position: fixed; right: 18px; top: 96px;
+        display: flex; align-items: center; gap: 10px;
+        background: rgba(20, 27, 41, 0.72); padding: 8px 14px; border-radius: 8px;
+        font: 600 13px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+        letter-spacing: 0.1em; color: #dce4f2;
+        pointer-events: none; user-select: none;
+      }
+      #compass { font-size: 17px; line-height: 1; color: #5fd39a; transition: transform 90ms linear; }
       #audio-controls {
         position: fixed; right: 18px; top: 54px;
         display: flex; align-items: center; gap: 8px;
@@ -61,6 +70,7 @@
   </head>
   <body>
     <div id="score">SCORE 0</div>
+    <div id="course"><span id="compass">▲</span><span id="range">0 m</span></div>
     <div id="radio" aria-live="polite"><span id="radio-speaker"></span><span id="radio-text"></span></div>
     <div id="audio-controls">
       <button id="mute" type="button" aria-label="Mute">🔊</button>

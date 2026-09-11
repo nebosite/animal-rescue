@@ -11,11 +11,34 @@ export class Hud {
   private renderedStatus = ''
   private renderedScore = -1
 
+  private renderedRange = -1
+
   constructor(
     private readonly statusElement: HTMLElement,
     private readonly scoreElement: HTMLElement,
     private readonly hintElement: HTMLElement,
+    private readonly compassElement?: HTMLElement,
+    private readonly rangeElement?: HTMLElement,
   ) {}
+
+  /**
+   * Point the compass at wherever the pilot should be heading and show the
+   * range. On a map this size the target is usually past the fog, so without
+   * this you are searching rather than flying.
+   *
+   * `relativeBearing` is in radians, positive to the left of the nose.
+   */
+  setCourse(relativeBearing: number, range: number): void {
+    if (this.compassElement) {
+      // CSS rotation runs clockwise, so a target to the left is negative.
+      this.compassElement.style.transform = `rotate(${(-relativeBearing * 180) / Math.PI}deg)`
+    }
+    const rounded = Math.round(range)
+    if (this.rangeElement && rounded !== this.renderedRange) {
+      this.renderedRange = rounded
+      this.rangeElement.textContent = `${rounded} m`
+    }
+  }
 
   /** Show the controller hints instead of the keyboard ones while a pad is connected. */
   showGamepad(connected: boolean): void {

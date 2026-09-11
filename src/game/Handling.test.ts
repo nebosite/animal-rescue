@@ -47,7 +47,8 @@ describe('Handling', () => {
   })
 
   it('reports a bump against the edge of the field', () => {
-    const events = fly(new Helicopter(), new Handling(0.5), { roll: 1 }, 12)
+    // Long enough to cross half the map at cruise and still be pushing.
+    const events = fly(new Helicopter(), new Handling(0.5), { roll: 1 }, 30)
     expect(events).toContain('bump')
   })
 

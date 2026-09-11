@@ -12,6 +12,7 @@ export class LandingPadModel {
   private readonly rim: THREE.MeshStandardMaterial
 
   constructor(pad: LandingPad, private readonly idleRimColor: number = RIM_COLOR) {
+    // The pad's own position carries the ground height it was levelled to.
     this.group.position.copy(pad.position)
 
     this.rim = new THREE.MeshStandardMaterial({ color: idleRimColor, roughness: 0.7 })
