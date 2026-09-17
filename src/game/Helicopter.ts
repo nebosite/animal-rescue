@@ -30,6 +30,8 @@ export class Helicopter {
   impactSpeed = 0
   /** True on any update in which the helicopter was pushed back by a limit. */
   justBumped = false
+  /** True while the helicopter is dragging through something solid. */
+  justStruck = false
 
   private yawRate = 0
   /** The stick-driven part of the roll, before the cosmetic turn-bank is added. */
@@ -80,6 +82,7 @@ export class Helicopter {
     this.ground = groundHeight
     this.justLanded = false
     this.justBumped = false
+    this.justStruck = false
     const onGround = this.isOnGround
 
     this.turn(input.yaw, dt)
@@ -96,6 +99,20 @@ export class Helicopter {
       this.impactSpeed = Math.max(0, descentRate)
     }
     this.wasOnGround = this.isOnGround
+  }
+
+  /**
+   * Clip something solid — a treetop, say. Scrubs off speed rather than
+   * stopping dead, so ploughing through a canopy drags you down and slows you
+   * without the helicopter ever being destroyed by scenery.
+   */
+  strikeObstacle(dt: number): void {
+    const drag = Math.exp(-STRIKE_DRAG * dt)
+    this.velocity.x *= drag
+    this.velocity.z *= drag
+    // Branches snatch downward; they never throw you upward.
+    if (this.velocity.y > 0) this.velocity.y *= drag
+    this.justStruck = true
   }
 
   private turn(yawInput: number, dt: number): void {
@@ -218,3 +235,5 @@ const VERTICAL_DRAG = 2.2
 const VERTICAL_TERMINAL_SPEED = COLLECTIVE_ACCEL / VERTICAL_DRAG
 
 const GROUND_FRICTION = 10
+/** How hard foliage drags: heavy enough to feel, light enough to fly out of. */
+const STRIKE_DRAG = 5.5

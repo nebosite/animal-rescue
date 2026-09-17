@@ -13,6 +13,8 @@ export class Hud {
 
   private renderedRange = -1
   private renderedIntegrity = -1
+  private renderedTask = ''
+  private renderedHint = ''
 
   constructor(
     private readonly statusElement: HTMLElement,
@@ -22,7 +24,25 @@ export class Hud {
     private readonly rangeElement?: HTMLElement,
     private readonly integrityBar?: HTMLElement,
     private readonly integrityPanel?: HTMLElement,
+    private readonly objectivePanel?: HTMLElement,
+    private readonly taskElement?: HTMLElement,
+    private readonly objectiveHint?: HTMLElement,
   ) {}
+
+  /** Say what the player should be doing, and which beacon it concerns. */
+  setObjective(task: string, hint: string, target: string): void {
+    if (this.taskElement && task !== this.renderedTask) {
+      this.renderedTask = task
+      this.taskElement.textContent = task
+    }
+    if (this.objectiveHint && hint !== this.renderedHint) {
+      this.renderedHint = hint
+      this.objectiveHint.textContent = hint
+    }
+    if (this.objectivePanel && this.objectivePanel.dataset.target !== target) {
+      this.objectivePanel.dataset.target = target
+    }
+  }
 
   /** Show how much helicopter is left, 1 down to 0. */
   setIntegrity(integrity: number): void {

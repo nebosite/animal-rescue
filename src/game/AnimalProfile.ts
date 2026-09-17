@@ -145,6 +145,7 @@ export const CHIEF: SpeakerProfile & {
     welcome: string[]
     hardLanding: string[]
     bump: string[]
+    treetops: string[]
     scorched: string[]
     grounded: string[]
     repaired: string[]
@@ -156,6 +157,11 @@ export const CHIEF: SpeakerProfile & {
     welcome: ['Chief here. New paint on that bird. NEW. PAINT.', "Bring 'em home, and bring my helicopter home prettier than you found it."],
     hardLanding: ["THAT'S MY PAINT JOB!", 'Do you know what a skid costs? I do.', 'Landing, not crashing. Say it with me.'],
     bump: ['Was that a scratch? That sounded like a scratch.', 'The sky is very large. Try staying in it.'],
+    treetops: [
+      'Those are TREES. We fly ABOVE the trees.',
+      'I can hear the branches from here. Climb!',
+      'Pine sap. On my paint. Marvellous.',
+    ],
     scorched: [
       'THE FIRE. NOT INTO THE FIRE. Over it or around it!',
       'That is my clear coat blistering. GET OUT OF THERE.',

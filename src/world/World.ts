@@ -6,8 +6,10 @@ import { AnimalModel } from './AnimalModel'
 import { Terrain } from '../game/Terrain'
 import { TerrainMesh } from './TerrainMesh'
 import { Forest } from './Forest'
+import { TreeCover } from '../game/TreeCover'
 import { Fire } from '../game/Fire'
 import { FireField } from './FireField'
+import { Beacon } from './Beacon'
 import { FIELD_LIMIT } from '../game/Helicopter'
 
 /**
@@ -28,9 +30,11 @@ export class World {
   readonly pickupPad: LandingPad
   readonly pads: readonly LandingPad[]
   readonly fire: Fire
+  readonly treeCover: TreeCover
 
   private cameraPlaced = false
   private readonly fireField: FireField
+  private readonly beacons: Beacon[] = []
   private readonly padModels: Map<LandingPad, LandingPadModel>
 
   constructor() {
@@ -65,8 +69,18 @@ export class World {
     ])
     for (const model of this.padModels.values()) this.scene.add(model.group)
 
-    const clearings = this.pads.map((pad) => ({ x: pad.position.x, z: pad.position.z, radius: pad.radius * 2.2 }))
-    this.scene.add(new Forest(this.terrain, clearings).group)
+    // A generous clearing round each pad: somewhere to descend into that is not
+    // a hole in the canopy you have to find first.
+    const clearings = this.pads.map((pad) => ({ x: pad.position.x, z: pad.position.z, radius: pad.radius * 3.4 }))
+    this.treeCover = new TreeCover(this.terrain, clearings)
+    this.scene.add(new Forest(this.treeCover).group)
+
+    // A pillar of light over each pad, so they can be found from anywhere.
+    for (const [pad, color] of [[this.pickupPad, PICKUP_RIM_COLOR], [this.rescuePad, RESCUE_RIM_COLOR]] as const) {
+      const beacon = new Beacon(pad.position, color)
+      this.beacons.push(beacon)
+      this.scene.add(beacon.group)
+    }
 
     // The fire lies across the run between the pads, so every trip is a
     // decision: go round, or climb over it.
@@ -78,9 +92,10 @@ export class World {
     this.scene.add(this.helicopter.group)
   }
 
-  /** Flicker the flames and roll the smoke. `elapsed` is seconds since start. */
-  updateFire(elapsed: number): void {
+  /** Flicker the flames, roll the smoke, pulse the beacons. */
+  updateEffects(elapsed: number, viewer: THREE.Vector3): void {
     this.fireField.update(elapsed)
+    for (const beacon of this.beacons) beacon.update(elapsed, viewer)
   }
 
   /** Light up whichever pad the helicopter is standing on, and only that one. */

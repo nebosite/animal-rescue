@@ -169,6 +169,42 @@ describe('Helicopter flight model', () => {
     expect(bumped).toBe(true)
   })
 
+  it('is dragged down and slowed by clipping something solid', () => {
+    const helicopter = fly(fresh(), { pitch: 1 }, 3)
+    const cruising = helicopter.speed
+    expect(cruising).toBeGreaterThan(20)
+
+    // Plough through foliage for half a second. The real loop moves first and
+    // then discovers what it hit, so the strike follows the update.
+    const input = { ...noInput(), pitch: 1 }
+    for (let i = 0; i < 30; i++) {
+      helicopter.update(input, 1 / 60)
+      helicopter.strikeObstacle(1 / 60)
+    }
+    expect(helicopter.justStruck).toBe(true)
+    expect(helicopter.speed).toBeLessThan(cruising * 0.6)
+  })
+
+  it('forgets a strike as soon as it is clear again', () => {
+    const helicopter = fresh()
+    helicopter.strikeObstacle(1 / 60)
+    expect(helicopter.justStruck).toBe(true)
+    helicopter.update(noInput(), 1 / 60)
+    expect(helicopter.justStruck).toBe(false)
+  })
+
+  it('can fly back out of foliage rather than being trapped in it', () => {
+    const helicopter = fresh()
+    const input = { ...noInput(), collective: 1 }
+    for (let i = 0; i < 30; i++) {
+      helicopter.update(input, 1 / 60)
+      helicopter.strikeObstacle(1 / 60)
+    }
+    const climbing = helicopter.position.y
+    for (let i = 0; i < 60; i++) helicopter.update(input, 1 / 60)
+    expect(helicopter.position.y).toBeGreaterThan(climbing + 5)
+  })
+
   it('rests on the ground it is told about, not a fixed floor', () => {
     const hilltop = fresh()
     for (let i = 0; i < 600; i++) hilltop.update({ ...noInput(), collective: -1 }, 1 / 60, 60)

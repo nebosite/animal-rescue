@@ -42,6 +42,11 @@ export class Announcer {
     return null
   }
 
+  /** The Chief listening to his helicopter mow the forest. */
+  treetops(): RadioLine {
+    return this.chief(this.pick('chief.treetops', CHIEF.lines.treetops))
+  }
+
   /** The Chief watching his paint blister. */
   scorched(): RadioLine {
     return this.chief(this.pick('chief.scorched', CHIEF.lines.scorched))

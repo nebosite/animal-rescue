@@ -111,9 +111,16 @@ slope. The base sits low, the pickup high, about 645 units apart — a real
 flight. A HUD compass and range point at whichever you need next, because at
 this size the target is well past the fog.
 
-`Forest` scatters trees deterministically and rejects them on steep ground,
-above the treeline, in the canyon, and inside clearings — which is what
-leaves natural landing spots rather than a uniform carpet. Two draw calls.
+`TreeCover` decides where the trees are — scattered deterministically and
+rejected on steep ground, above the treeline, in the canyon, and inside
+clearings, which is what leaves natural landing spots rather than a uniform
+carpet. `Forest` is only its picture (two draw calls), so what you can see and
+what you can hit are by construction the same forest. Strike lookups go through
+a coarse grid, since asking several thousand trees every frame is otherwise the
+most expensive thing in the game.
+
+Flying into the canopy drags hard (about 27 m/s down to 5), costs paint, and
+gets you shouted at. It never destroys you — you can always climb back out.
 
 ## Fire and damage
 
@@ -128,6 +135,22 @@ controls and `Autopilot` flies it home — climb, cruise, land — and the base 
 repairs it. The autopilot emits ordinary `FlightInput`, so it flies through the
 same flight model with no special cases, and is tested by simply letting it fly
 from anywhere on the map and seeing where it ends up.
+
+## Guidance
+
+A map this size with a small animal in it is unplayable without being told
+where to go — the first play-test was a minute of flying around finding
+nothing. Three things fix it, all reading from one source:
+
+- **`Objective.guidanceFor()`** — a pure function turning the situation into a
+  task and a hint ("Find Pip the fox kit" / "You are over the pad — hold Z to
+  come down (45 m up)"). Every branch is unit tested. Shown top-left.
+- **`Beacon`** — a pillar of light over each pad, exempt from fog so it is
+  visible from across the map, fading out up close so it does not become a wall
+  across the view when you are standing on it. The ground ring stays: that is
+  what you aim the skids at.
+- **`TargetMarker`** — an on-screen pointer that sits on the target when in
+  view and pins to the edge pointing the way when it is not.
 
 ## The loop so far
 

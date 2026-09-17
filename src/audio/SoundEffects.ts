@@ -12,6 +12,8 @@ export class SoundEffects {
   private readonly output: GainNode
   private readonly noise: AudioBuffer
   private readonly bumpCooldown = new Cooldown(BUMP_COOLDOWN)
+  // Short, because clipping trees in a row should sound like a series of hits.
+  private readonly foliageCooldown = new Cooldown(0.22)
 
   constructor(engine: AudioEngine, reverb?: Reverb) {
     this.context = engine.context
@@ -31,6 +33,7 @@ export class SoundEffects {
 
   advance(dt: number): void {
     this.bumpCooldown.advance(dt)
+    this.foliageCooldown.advance(dt)
   }
 
   /** Animal aboard: two quick rising chirps and a whoosh of rotor wash. */
@@ -62,6 +65,15 @@ export class SoundEffects {
     const now = this.context.currentTime
     this.tone('square', 150, 90, now, 0.09, 0.25)
     this.burst('bandpass', 500, now, 0.08, 0.3)
+  }
+
+  /** Dragging through a treetop: a bright scattery thrash of branches. */
+  foliage(): void {
+    if (!this.foliageCooldown.tryFire()) return
+    const now = this.context.currentTime
+    this.burst('highpass', 1700, now, 0.22, 0.42)
+    this.burst('bandpass', 700, now + 0.03, 0.15, 0.3)
+    this.tone('triangle', 220, 150, now, 0.1, 0.16)
   }
 
   private tone(type: OscillatorType, fromHz: number, toHz: number, at: number, seconds: number, peak: number): void {

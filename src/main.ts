@@ -7,6 +7,8 @@ import { LandingPad } from './game/LandingPad'
 import { Rescue } from './game/Rescue'
 import { Handling } from './game/Handling'
 import { Announcer } from './game/Announcer'
+import { guidanceFor } from './game/Objective'
+import { TargetMarker } from './ui/TargetMarker'
 import { Airframe } from './game/Airframe'
 import { Autopilot } from './game/Autopilot'
 import { Cooldown } from './game/Cooldown'
@@ -32,14 +34,23 @@ const hud = new Hud(
   document.getElementById('range')!,
   document.getElementById('integrity-bar')!,
   document.getElementById('integrity')!,
+  document.getElementById('objective')!,
+  document.getElementById('objective-task')!,
+  document.getElementById('objective-hint')!,
+)
+const targetMarker = new TargetMarker(
+  document.getElementById('target-marker')!,
+  document.getElementById('target-arrow')!,
+  document.getElementById('target-label')!,
 )
 const rescue = new Rescue(world.pickupPad, world.rescuePad)
 const handling = new Handling()
 const announcer = new Announcer()
 const airframe = new Airframe()
 const autopilot = new Autopilot()
-// The Chief shouts about the fire, but not sixty times a second.
+// The Chief shouts about the fire and the trees, but not sixty times a second.
 const fireWarning = new Cooldown(4)
+const treeWarning = new Cooldown(6)
 
 // Sound can only begin after a key press or click, so the soundscape is built
 // the moment the browser lets the engine start.
@@ -113,12 +124,13 @@ renderer.setAnimationLoop(() => {
     ? autopilot.update(helicopter, world.rescuePad.position, ground)
     : controls.poll()
   helicopter.update(flying, dt, ground)
+  clipTrees(dt)
 
   world.helicopter.moveTo(helicopter.position)
   world.helicopter.setAttitude(helicopter.heading, helicopter.pitch, helicopter.roll)
   world.helicopter.spin(dt)
   world.follow(helicopter.position, helicopter.heading, dt)
-  world.updateFire(timer.getElapsed())
+  world.updateEffects(timer.getElapsed(), helicopter.position)
 
   const landedPad = LandingPad.landedOn(world.pads, helicopter.position, helicopter.isOnGround)
   world.highlightPad(landedPad)
@@ -144,7 +156,7 @@ renderer.setAnimationLoop(() => {
   }
 
   placeAnimal()
-  updateCourse()
+  guide()
   soundscape?.frame(helicopter, rescue.animalWaiting ? WAITING_SPOT : null, dt)
   radio.update(dt)
   hud.showGamepad(controls.usingGamepad)
@@ -235,18 +247,76 @@ function standingStatus(landedPad: LandingPad | null): string {
   return `${rescue.animal.name.toUpperCase()} THE ${rescue.animal.species.toUpperCase()} IS WAITING — FOLLOW THE CALL`
 }
 
-/** Point the compass at wherever the pilot should be heading next. */
-function updateCourse(): void {
-  const target = rescue.carrying || airframe.needsRepair ? world.rescuePad.position : world.pickupPad.position
-  const dx = target.x - helicopter.position.x
-  const dz = target.z - helicopter.position.z
+/** Fly into the canopy and it drags, scrapes and costs paint. */
+function clipTrees(dt: number): void {
+  treeWarning.advance(dt)
+  if (helicopter.isOnGround) return
+
+  const struck = world.treeCover.strikeAt(helicopter.position.x, helicopter.position.y, helicopter.position.z)
+  if (!struck) return
+
+  helicopter.strikeObstacle(dt)
+  airframe.scuff(TREE_DAMAGE * dt)
+  soundscape?.effects.foliage()
+
+  if (airframe.needsRepair) return
+  if (treeWarning.tryFire()) {
+    // Whoever is aboard objects; otherwise it is the Chief's paint again.
+    if (rescue.carrying) {
+      rescue.scold()
+      radio.say(announcer.scolded(rescue.animal))
+    } else {
+      radio.say(announcer.treetops())
+    }
+  }
+}
+
+/**
+ * Tell the player what to do and where to go: the objective panel, the compass
+ * and the on-screen marker all read from the same guidance.
+ */
+function guide(): void {
+  const carryingHome = rescue.carrying || airframe.needsRepair
+  const pad = carryingHome ? world.rescuePad : world.pickupPad
+  const dx = pad.position.x - helicopter.position.x
+  const dz = pad.position.z - helicopter.position.z
+  const range = Math.hypot(dx, dz)
+
+  const guidance = guidanceFor({
+    animalName: rescue.animal.name,
+    species: rescue.animal.species,
+    carrying: rescue.carrying,
+    needsRepair: airframe.needsRepair,
+    onGround: helicopter.isOnGround,
+    overTarget: pad.covers(helicopter.position),
+    range,
+    heightAboveTarget: helicopter.position.y - pad.position.y,
+    speed: helicopter.speed,
+  })
+  hud.setObjective(guidance.task, guidance.hint, guidance.target)
+
   // The heading that would put the nose on the target, minus where it is now.
   const bearing = Math.atan2(-dx, -dz) - helicopter.heading
-  hud.setCourse(Math.atan2(Math.sin(bearing), Math.cos(bearing)), Math.hypot(dx, dz))
+  hud.setCourse(Math.atan2(Math.sin(bearing), Math.cos(bearing)), range)
+
+  // Aim the marker a little above the deck so it sits over the pad, not in it.
+  MARKER_AT.copy(pad.position).setY(pad.position.y + MARKER_HEIGHT)
+  targetMarker.update(
+    MARKER_AT,
+    world.camera,
+    window.innerWidth,
+    window.innerHeight,
+    `${carryingHome ? 'BASE' : rescue.animal.name.toUpperCase()}  ${Math.round(range)}m`,
+  )
 }
 
 // Reused so the render loop is not allocating a vector every frame.
 const PLACE = new THREE.Vector3()
+const MARKER_AT = new THREE.Vector3()
+/** How far up the beacon the on-screen marker rides. */
+const MARKER_HEIGHT = 26
+/** Integrity lost per second of dragging through a canopy. */
+const TREE_DAMAGE = 0.08
 // Small enough to look like wildlife next to the helicopter rather than a
 // rival vehicle, while still readable from the chase camera.
 const WAITING_SCALE = 0.8

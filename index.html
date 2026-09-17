@@ -23,6 +23,36 @@
         opacity: 0; transition: opacity 140ms ease;
         pointer-events: none; user-select: none;
       }
+      #objective {
+        position: fixed; left: 16px; top: 16px; max-width: 340px;
+        background: rgba(20, 27, 41, 0.82); border-left: 3px solid #5fd39a;
+        padding: 11px 15px; border-radius: 6px;
+        pointer-events: none; user-select: none;
+      }
+      #objective-task {
+        font: 700 14px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
+        letter-spacing: 0.06em; color: #eaf1fb;
+      }
+      #objective-hint {
+        margin-top: 5px;
+        font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; color: #9fb2d0;
+      }
+      #objective[data-target="pickup"] { border-left-color: #d9a441; }
+      #objective[data-target="base"] { border-left-color: #5b8fd9; }
+
+      #target-marker {
+        position: fixed; left: 0; top: 0; width: 0; height: 0;
+        pointer-events: none; user-select: none; z-index: 5;
+      }
+      #target-inner {
+        position: absolute; left: 0; top: 0; transform: translate(-50%, -50%);
+        display: flex; flex-direction: column; align-items: center; gap: 3px;
+        font: 700 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+        letter-spacing: 0.1em; white-space: nowrap; color: #f4e2b8;
+        text-shadow: 0 0 6px rgba(0, 0, 0, 0.9), 0 0 2px rgba(0, 0, 0, 1);
+      }
+      #target-arrow { font-size: 20px; line-height: 1; }
+      #target-marker[data-where="in-view"] #target-arrow { opacity: 0.35; font-size: 15px; }
       #integrity {
         position: fixed; right: 18px; top: 134px;
         width: 148px; background: rgba(20, 27, 41, 0.72);
@@ -85,6 +115,13 @@
     </style>
   </head>
   <body>
+    <div id="objective" data-target="pickup">
+      <div id="objective-task">Find Pip the fox kit</div>
+      <div id="objective-hint">Press any key to begin.</div>
+    </div>
+    <div id="target-marker" data-where="off-screen">
+      <div id="target-inner"><span id="target-arrow">▲</span><span id="target-label"></span></div>
+    </div>
     <div id="score">SCORE 0</div>
     <div id="course"><span id="compass">▲</span><span id="range">0 m</span></div>
     <div id="integrity" data-state="fine">AIRFRAME<div id="integrity-track"><div id="integrity-bar"></div></div></div>
