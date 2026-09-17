@@ -139,5 +139,5 @@ const MAX_BLIPS = 22
 /** Loud: the voice is the point of the moment it plays in. */
 const BLIP_VOLUME = 0.85
 const LEAD_IN = 0.09
-/** Keep the beds down a moment past the last blip. */
-const DUCK_TAIL = 0.25
+/** Keep the beds down only a beat past the last blip; a long hold is a hole. */
+const DUCK_TAIL = 0.1

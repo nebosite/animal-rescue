@@ -38,7 +38,10 @@ export class Soundscape {
   frame(helicopter: Helicopter, animalPosition: { x: number; y: number; z: number } | null, dt: number): void {
     this.engine.setListener(helicopter.position, helicopter.heading)
     this.rotor.update(helicopter.effort, helicopter.speed)
-    this.wind.update(helicopter.position.y, helicopter.speed)
+    // Height above the ground, not sea level: on a hilltop the parked
+    // helicopter is still parked, and the wind must not howl because the
+    // land under it happens to be high.
+    this.wind.update(helicopter.altitudeAboveGround, helicopter.speed)
     this.beacon.update(animalPosition, dt)
     this.effects.advance(dt)
 

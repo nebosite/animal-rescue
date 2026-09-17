@@ -12,14 +12,16 @@ export interface WindTargets {
  * atmosphere, but it also tells the player how high and how fast they are.
  * Pure, so the mapping is testable without audio.
  */
-export function windTargets(altitude: number, speed: number): WindTargets {
-  const height = clamp01((altitude - GROUND_ALTITUDE) / FULL_WIND_ALTITUDE)
+export function windTargets(altitudeAboveGround: number, speed: number): WindTargets {
+  const height = clamp01(altitudeAboveGround / FULL_WIND_ALTITUDE)
   const pace = clamp01(speed / TOP_SPEED)
   // A bandpassed noise bed carries little energy per unit of gain, so these
-  // numbers are higher than they look: full height and speed lands the wind
-  // at about half the rotor's loudness, a presence rather than a hiss.
+  // numbers are higher than they look. They are set so the wind sits under the
+  // rotor even at full cruise: it is weather behind the machine, never the
+  // loudest thing in the mix, because a loud bed that swells is heard as the
+  // sound cutting in and out.
   return {
-    gain: 0.45 * height + 0.35 * pace,
+    gain: 0.3 * height + 0.26 * pace,
     centerHz: 350 + 150 * height + 500 * pace,
   }
 }
@@ -41,7 +43,8 @@ export class WindSound {
     this.output.gain.value = 0
     this.output.connect(destination)
 
-    // Gusts: a slow LFO that swings the level about ±30%.
+    // Gusts: a slow LFO that swings the level a little. Kept shallow — a deep
+    // swell on the loudest bed reads as the whole mix fading in and out.
     const gusting = ctx.createGain()
     gusting.gain.value = 1
     gusting.connect(this.output)
@@ -49,7 +52,7 @@ export class WindSound {
     gust.type = 'sine'
     gust.frequency.value = 0.13
     const gustDepth = ctx.createGain()
-    gustDepth.gain.value = 0.3
+    gustDepth.gain.value = 0.12
     gust.connect(gustDepth)
     gustDepth.connect(gusting.gain)
 
@@ -90,8 +93,6 @@ function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value))
 }
 
-/** Where the helicopter rests; wind starts above it. */
-const GROUND_ALTITUDE = 2
 /** Height above the ground at which wind reaches full strength. */
 const FULL_WIND_ALTITUDE = 40
 /** Matches the flight model's top speed. */

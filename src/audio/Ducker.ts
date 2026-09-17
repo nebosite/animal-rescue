@@ -31,7 +31,11 @@ export class Ducker {
   }
 }
 
-/** How far the beds drop while a voice is talking. */
-const DUCKED = 0.32
+/**
+ * How far the beds drop while a voice is talking. Deep enough that the voice
+ * is clearly on top, shallow enough that the engine is heard to keep running
+ * underneath — the first cut (a third) read as the sound cutting out.
+ */
+const DUCKED = 0.55
 const DIP_SECONDS = 0.05
-const RECOVER_SECONDS = 0.25
+const RECOVER_SECONDS = 0.18
