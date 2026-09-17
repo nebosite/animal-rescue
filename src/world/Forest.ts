@@ -17,7 +17,7 @@ export class Forest {
 
     const trunks = new THREE.InstancedMesh(
       new THREE.CylinderGeometry(TRUNK_RADIUS * 0.7, TRUNK_RADIUS, TRUNK_HEIGHT, 5),
-      new THREE.MeshStandardMaterial({ color: 0x4a3728, roughness: 0.95 }),
+      new THREE.MeshStandardMaterial({ color: 0x8a5a33, roughness: 0.95 }),
       count,
     )
     const canopies = new THREE.InstancedMesh(
@@ -56,5 +56,5 @@ export class Forest {
 }
 
 const TRUNK_RADIUS = 0.5
-const NEEDLE_DARK = new THREE.Color(0x1f3a2b)
-const NEEDLE_LIGHT = new THREE.Color(0x3c6b44)
+const NEEDLE_DARK = new THREE.Color(0x2c9a4b)
+const NEEDLE_LIGHT = new THREE.Color(0x74d96c)

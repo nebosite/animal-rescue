@@ -59,10 +59,12 @@ function clamp01(value: number): number {
 
 const SEGMENTS = 220
 
-const GRASS = new THREE.Color(0x2f4a34)
-const MEADOW = new THREE.Color(0x3d5638)
-const ROCK = new THREE.Color(0x5a5a57)
-const CANYON_ROCK = new THREE.Color(0x4a3a30)
+// Saturated and sunny on purpose: fresh grass, yellow-green meadow, warm
+// stone, and an orange canyon — a place that looks like fun to fly over.
+const GRASS = new THREE.Color(0x5fbd55)
+const MEADOW = new THREE.Color(0x9bd45c)
+const ROCK = new THREE.Color(0xbcb09e)
+const CANYON_ROCK = new THREE.Color(0xd4884f)
 /** Above this the hills start going bare; by the upper figure they are stone. */
 const TREELINE_LOW = 46
 const TREELINE_HIGH = 78

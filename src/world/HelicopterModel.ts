@@ -118,7 +118,7 @@ function blurDisc(radius: number, height: number): THREE.Mesh {
 }
 
 const BLADE_SPAN = 14
-const BODY_COLOR = 0xc4483a
+const BODY_COLOR = 0xe8553f
 const ACCENT_COLOR = 0xe0e4ec
 const ROTOR_COLOR = 0x39404f
 const ROTOR_SPEED = 18

@@ -16,6 +16,19 @@ export class TargetMarker {
     private readonly label: HTMLElement,
   ) {}
 
+  /** Take the marker off the screen entirely. */
+  hide(): void {
+    if (this.element.dataset.where !== 'hidden') this.element.dataset.where = 'hidden'
+  }
+
+  /** Mark this as the one the player should go for, or as under threat. */
+  emphasise(primary: boolean, urgent: boolean): void {
+    const p = primary ? 'true' : 'false'
+    const u = urgent ? 'true' : 'false'
+    if (this.element.dataset.primary !== p) this.element.dataset.primary = p
+    if (this.element.dataset.urgent !== u) this.element.dataset.urgent = u
+  }
+
   /** Place the marker for this frame. */
   update(target: THREE.Vector3, camera: THREE.Camera, width: number, height: number, text: string): void {
     this.projected.copy(target).project(camera)

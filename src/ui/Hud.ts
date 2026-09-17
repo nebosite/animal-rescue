@@ -29,6 +29,29 @@ export class Hud {
     private readonly objectiveHint?: HTMLElement,
   ) {}
 
+  private renderedClock = ''
+
+  /** The shift clock, blinking when it is nearly over. */
+  setClock(text: string, closing: boolean, clockElement?: HTMLElement): void {
+    const element = clockElement ?? document.getElementById('clock')
+    if (!element) return
+    if (text !== this.renderedClock) {
+      this.renderedClock = text
+      element.textContent = text
+    }
+    const flag = closing ? 'true' : 'false'
+    if (element.dataset.closing !== flag) element.dataset.closing = flag
+  }
+
+  /** The end-of-shift card: score, what was brought home, how to go again. */
+  showShiftEnd(score: number, rescued: number, detail: string): void {
+    const overlay = document.getElementById('shift-end')
+    if (!overlay) return
+    document.getElementById('shift-end-score')!.textContent = String(score)
+    document.getElementById('shift-end-detail')!.textContent = `${rescued} rescued · ${detail}`
+    overlay.hidden = false
+  }
+
   /** Say what the player should be doing, and which beacon it concerns. */
   setObjective(task: string, hint: string, target: string): void {
     if (this.taskElement && task !== this.renderedTask) {

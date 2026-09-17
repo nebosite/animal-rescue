@@ -13,42 +13,37 @@ describe('World', () => {
     expect(lights.length).toBeGreaterThan(0)
   })
 
-  it('has both a pickup pad and a rescue pad', () => {
-    const world = new World()
-    expect(world.pads).toContain(world.pickupPad)
-    expect(world.pads).toContain(world.rescuePad)
-    expect(world.pads).toHaveLength(2)
+  it('has the rescue base as its only pad, and a body and a flare per animal slot', () => {
+    const world = new World(3)
+    expect(world.pads).toEqual([world.rescuePad])
+    expect(world.waitingAnimals).toHaveLength(3)
+    expect(world.flares).toHaveLength(3)
+    for (const model of world.waitingAnimals) expect(world.scene.children).toContain(model.group)
   })
 
-  it('sets the pads a long flight apart, for a real trip between them', () => {
-    const { pickupPad, rescuePad } = new World()
-    const gap = Math.hypot(
-      pickupPad.position.x - rescuePad.position.x,
-      pickupPad.position.z - rescuePad.position.z,
-    )
-    expect(gap).toBeGreaterThan(400)
+  it('puts the base on level ground at the height the land actually is', () => {
+    const world = new World()
+    const pad = world.rescuePad
+    expect(world.terrain.heightAt(pad.position.x, pad.position.z)).toBeCloseTo(pad.position.y, 3)
+    expect(world.terrain.isLandable(pad.position.x, pad.position.z)).toBe(true)
+    // Level right across the deck, not just at the centre.
+    expect(world.terrain.heightAt(pad.position.x + pad.radius - 1, pad.position.z)).toBeCloseTo(pad.position.y, 2)
   })
 
-  it('puts both pads on level ground at the height the land actually is', () => {
+  it('keeps the base inside the flyable field and clear of the fire', () => {
     const world = new World()
-    for (const pad of world.pads) {
-      expect(world.terrain.heightAt(pad.position.x, pad.position.z)).toBeCloseTo(pad.position.y, 3)
-      expect(world.terrain.isLandable(pad.position.x, pad.position.z)).toBe(true)
-      // Level right across the deck, not just at the centre.
-      expect(world.terrain.heightAt(pad.position.x + pad.radius - 1, pad.position.z)).toBeCloseTo(pad.position.y, 2)
-    }
+    const pad = world.rescuePad
+    expect(Math.abs(pad.position.x)).toBeLessThan(world.terrain.halfSize)
+    expect(Math.abs(pad.position.z)).toBeLessThan(world.terrain.halfSize)
+    expect(world.fire.intensityAt(pad.position.x, pad.position.z)).toBe(0)
+    expect(world.fire.distanceToNearest(pad.position.x, pad.position.z)).toBeGreaterThan(60)
   })
 
-  it('puts the pickup up in the hills and the base down low', () => {
+  it('has somewhere for animals to wait: plenty of landable sites of every kind', () => {
     const world = new World()
-    expect(world.pickupPad.position.y).toBeGreaterThan(world.rescuePad.position.y + 20)
-  })
-
-  it('keeps both pads inside the flyable field', () => {
-    const world = new World()
-    for (const pad of world.pads) {
-      expect(Math.abs(pad.position.x)).toBeLessThan(world.terrain.halfSize)
-      expect(Math.abs(pad.position.z)).toBeLessThan(world.terrain.halfSize)
+    expect(world.sites.landable).toBeGreaterThan(200)
+    for (const kind of ['clearing', 'hilltop', 'canyon', 'ridge', 'fireline'] as const) {
+      expect(world.sites.find(kind, world.fire, 1), kind).not.toBeNull()
     }
   })
 

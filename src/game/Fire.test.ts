@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { COLUMN_HEIGHT, Fire } from './Fire'
+import { COLUMN_HEIGHT, Fire, MAX_PATCHES } from './Fire'
 
 const one = new Fire([{ x: 0, z: 0, radius: 40 }])
 
@@ -79,5 +79,61 @@ describe('Fire.frontBetween', () => {
   it('is the same fire every time, so the map is learnable', () => {
     const again = Fire.frontBetween(from, to)
     expect(again.patches).toEqual(fire.patches)
+  })
+})
+
+describe('Fire.advance', () => {
+  const from = { x: -316, z: 190 }
+  const to = { x: 195, z: -203 }
+  const burnFor = (seconds: number) => {
+    const fire = Fire.frontBetween(from, to)
+    for (let i = 0; i < seconds * 10; i++) fire.advance(0.1)
+    return fire
+  }
+
+  it('widens every patch over time, up to a limit', () => {
+    const fresh = Fire.frontBetween(from, to)
+    const later = burnFor(60)
+    for (let i = 0; i < fresh.patches.length; i++) {
+      expect(later.patches[i].radius).toBeGreaterThan(fresh.patches[i].radius)
+    }
+    const much = burnFor(600)
+    for (const patch of much.patches) expect(patch.radius).toBeLessThanOrEqual(MAX_PATCHES > 0 ? 64 : 0)
+  })
+
+  it('catches new patches as it burns, but never more than the drawing can show', () => {
+    const fresh = Fire.frontBetween(from, to)
+    const later = burnFor(120)
+    expect(later.patches.length).toBeGreaterThan(fresh.patches.length)
+    const much = burnFor(3000)
+    expect(much.patches.length).toBeLessThanOrEqual(MAX_PATCHES)
+    expect(much.patches.length).toBe(MAX_PATCHES)
+  })
+
+  it('creeps downwind, toward the far end of the run', () => {
+    const fresh = Fire.frontBetween(from, to)
+    const later = burnFor(240)
+    // Distance from the pickup end to the nearest flame should shrink.
+    expect(later.distanceToNearest(to.x, to.z)).toBeLessThan(fresh.distanceToNearest(to.x, to.z))
+    // And the fire should never have reached back over the base.
+    expect(later.intensityAt(from.x, from.z)).toBe(0)
+  })
+
+  it('burns the same way every time', () => {
+    const a = burnFor(200)
+    const b = burnFor(200)
+    expect(a.patches).toEqual(b.patches)
+  })
+
+  it('does not leap: each new patch touches the fire it caught from', () => {
+    const fire = burnFor(300)
+    const original = Fire.frontBetween(from, to).patches.length
+    for (let i = original; i < fire.patches.length; i++) {
+      const patch = fire.patches[i]
+      const touching = fire.patches.some((other, j) =>
+        j !== i && Math.hypot(other.x - patch.x, other.z - patch.z) < other.radius + patch.radius,
+      )
+      expect(touching).toBe(true)
+    }
   })
 })

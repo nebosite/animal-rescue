@@ -44,6 +44,8 @@ export interface AnimalProfile {
     thanks: string[]
     /** Thanks after being scolded on the way — delivered, but not impressed. */
     grudging: string[]
+    /** Shouted while running from the fire to somewhere new. */
+    bolt: string[]
   }
 }
 
@@ -71,6 +73,7 @@ export const ROSTER: readonly AnimalProfile[] = [
       scold: ['EEP! My tail nearly came off!', "I'm not cargo, I'm a FOX!", 'Warn me next time!'],
       thanks: ["That was... actually kind of fun. Don't tell anyone.", 'Pip, safe and sound! Mostly sound.'],
       grudging: ['I made it. My stomach is still up there somewhere.', 'Thanks. I think. Never again.'],
+      bolt: ['NOPE nope nope nope— running!', "Too hot! I'm moving, find me again!"],
     },
   },
   {
@@ -87,6 +90,7 @@ export const ROSTER: readonly AnimalProfile[] = [
       scold: ['Hm? Something bumped.', 'Careful. I was dreaming about honey.'],
       thanks: ['Nice nap. Thanks.', "Zzz... oh. We're here. Neat."],
       grudging: ['Bumpy nap. Still a nap.', 'Hm. Next time, fewer bumps.'],
+      bolt: ['Hm. Warm. Moving over there.', 'Fire. Ugh. Fine, I will walk.'],
     },
   },
   {
@@ -103,6 +107,7 @@ export const ROSTER: readonly AnimalProfile[] = [
       scold: ['Excuse me. I am not luggage.', 'Unacceptable. My stylist will hear of this.', 'Slower. SLOWER.'],
       thanks: ['Adequate. You may tell people you carried the Duchess.', 'Hmph. I have had worse pilots. Barely.'],
       grudging: ['I shall be writing a letter.', 'That was a disgrace. I am, however, alive.'],
+      bolt: ['A Duchess does not RUN. She relocates. Briskly.', 'This is intolerable. I am over there now.'],
     },
   },
   {
@@ -119,6 +124,7 @@ export const ROSTER: readonly AnimalProfile[] = [
       scold: ['OW. Spines, remember?', "I've had smoother rides in a wheelbarrow."],
       thanks: ['Fine. Thanks. Whatever.', 'Hmph. Not bad.'],
       grudging: ['Hmph.', 'Never doing that again.'],
+      bolt: ['Ow ow ow hot hot hot.', 'Moving. Do not make me do this twice.'],
     },
   },
   {
@@ -135,6 +141,7 @@ export const ROSTER: readonly AnimalProfile[] = [
       scold: ['Your bank angle is excessive. I would know.', 'Hoo. That landing lacked finesse.'],
       thanks: ['Competent. I shall write a review.', 'Four stars. The approach was textbook.'],
       grudging: ['Two stars. Notes to follow.', 'I have flown better. I have wings.'],
+      bolt: ['Relocating. Your response time is noted.', 'The fire beat you here. I have moved. Try again.'],
     },
   },
 ]
@@ -149,6 +156,8 @@ export const CHIEF: SpeakerProfile & {
     scorched: string[]
     grounded: string[]
     repaired: string[]
+    fireClosing: string[]
+    shiftOver: string[]
   }
 } = {
   name: 'Chief',
@@ -176,6 +185,15 @@ export const CHIEF: SpeakerProfile & {
       'Buffed out. Barely. Try to keep her shiny this time.',
       'New paint. Again. Go on, the animals are waiting.',
       "Good as new. I said NEW. Don't make me say it a third time.",
+    ],
+    fireClosing: [
+      "The fire's nearly on {name}. That one first. Go!",
+      '{name} has got flames on the doorstep. Move, pilot!',
+      "Smoke over {name}'s spot. If you want the points, hurry.",
+    ],
+    shiftOver: [
+      "That's the shift. {count} brought home. Not bad. Not great. Paint's okay.",
+      'Shift over. {count} rescued. Go and get some sleep, I will wax the bird.',
     ],
   },
 }

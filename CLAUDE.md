@@ -124,9 +124,13 @@ gets you shouted at. It never destroys you — you can always climb back out.
 
 ## Fire and damage
 
-A front of burning patches (`Fire.ts`) lies across the run between the pads,
-so every trip is a decision: go round, or climb over. Heat thins with height —
-the column reaches 85 above the ground — so climbing over is real but costly.
+A front of burning patches (`Fire.ts`) lies across the run from the base to
+the high ground and creeps downwind toward it — every patch widens, and every
+fourteen seconds a new one catches at the edge of an old one, up to the thirty
+the drawing pre-allocates. Every trip is a decision (round, or over — heat
+thins with height and the column reaches 85 above the ground) and every wait
+has a clock. `FireField` places each patch's flames from fractional offsets
+times its current radius, so growth and new patches need no rebuilding.
 
 Fire harms only the machine, never anything alive. `Airframe` tracks integrity:
 about three seconds in the flames wrecks it, with a second or so of warning
@@ -135,6 +139,13 @@ controls and `Autopilot` flies it home — climb, cruise, land — and the base 
 repairs it. The autopilot emits ordinary `FlightInput`, so it flies through the
 same flight model with no special cases, and is tested by simply letting it fly
 from anywhere on the map and seeing where it ends up.
+
+## Look
+
+A bright, saturated day: sky blue, fresh greens, an orange canyon, warm stone,
+a red helicopter. The first palette was a smoky dusk and play-tested as gloomy
+for a game meant to be playful. The fire still reads because the flames are
+additive and the smoke is dark.
 
 ## Guidance
 
@@ -145,19 +156,32 @@ nothing. Three things fix it, all reading from one source:
 - **`Objective.guidanceFor()`** — a pure function turning the situation into a
   task and a hint ("Find Pip the fox kit" / "You are over the pad — hold Z to
   come down (45 m up)"). Every branch is unit tested. Shown top-left.
-- **`Beacon`** — a pillar of light over each pad, exempt from fog so it is
-  visible from across the map, fading out up close so it does not become a wall
-  across the view when you are standing on it. The ground ring stays: that is
-  what you aim the skids at.
-- **`TargetMarker`** — an on-screen pointer that sits on the target when in
-  view and pins to the edge pointing the way when it is not.
+- **`Beacon`** — a pillar of light over the base and a shorter flare over each
+  waiting animal, exempt from fog so they are visible from across the map,
+  fading out up close so they do not become a wall across the view. The ground
+  ring stays: that is what you aim the skids at.
+- **`TargetMarker`** — one on-screen pointer per animal (or one for the base
+  when carrying) that sits on the target when in view and pins to the edge
+  pointing the way when it is not; the recommended one is brighter, a
+  threatened one is orange.
 
 ## The loop so far
 
-A named animal from the roster (`AnimalProfile.ts`) waits at the amber pickup
-pad, calling in its own voice. Land there to take it aboard, fly to the blue
-rescue pad, and land again to deliver it for its value in points. The next
-animal is waiting immediately, in roster order, so the loop repeats.
+A five-minute **shift** (`Shift.ts`), started by the first key press. Three
+named animals from the roster (`AnimalProfile.ts`) wait out in the landscape
+at once — never on a pad, but at places `SiteFinder` picks: a clearing in the
+forest, a hilltop, the canyon floor, a ridge shelf, the edge of the fire. Each
+place has a difficulty that adds to the animal's value. An amber flare stands
+over each one and an on-screen marker names it with range and points; the one
+the fire is closest to is flagged, and the guidance sends you there first.
+
+Land within 13 m of an animal to take it aboard; land on the blue base pad to
+deliver it for its credit, plus **quick +2** for beating a brisk direct flight
+and **gentle +1** for a soft touchdown. A fresh animal takes its place, so
+there are always three to choose between. The fire **spreads** (`Fire.advance`)
+downwind toward them; any animal it reaches **bolts** to a new spot — never
+hurt, just harder to catch, and a point less patient. When the shift ends the
+card shows the score and `R` flies another.
 
 Flying roughly costs you. `Handling` watches the flight model for a hard
 touchdown, a held steep bank, or a bump against the edge, with thresholds set
@@ -167,8 +191,8 @@ Chief's when empty. Each scolding docks a point of that animal's credit, never
 below one. `Announcer` turns events into radio lines from the profiles, cycling
 variants; `RadioPanel` shows them and `VoiceBlips` gives each speaker an
 Animal-Crossing-style blip voice. The rules live in `Rescue`, which is told
-where the helicopter landed and decides whether anything happened — so calling
-it every frame while parked is harmless.
+where the helicopter landed and how hard, and decides whether anything
+happened — so calling it every frame while parked is harmless.
 
 ## Sound
 
@@ -189,8 +213,14 @@ the rescue state; it reads, never decides.
 - **Space** (`Reverb`) — a synthesized outdoor impulse response on a send
   bus. The animal's call echoes hardest, one-shots ring, the rotor gets air.
 - **Wind** (`WindSound`) — a gusting, drifting noise bed that is silent on the
-  ground and grows with altitude and speed, so it doubles as an altimeter.
-  `windTargets()` is the pure mapping.
+  ground and grows with *height above the ground* and speed, so it doubles as
+  an altimeter. `windTargets()` is the pure mapping. It is kept under the
+  rotor at all times: a loud bed that swells reads as the sound cutting out.
+- **Fire** (`FireSound`) — a crackling roar that swells within 170 m of the
+  flames, so you hear the fire before you see it.
+- **Radio ducking** (`Ducker`) — the beds dip to 55% while someone talks, for
+  the blips' length plus a beat. Deeper and longer than that was heard as the
+  engine cutting out.
 
 Mix balance matters more than any single sound: the first play-test "sound
 cut out after pickup" was the parked rotor being too quiet next to a loud

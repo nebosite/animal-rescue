@@ -84,6 +84,20 @@ export class TreeCover {
     return null
   }
 
+  /** Distance to the nearest trunk within `within`, or Infinity if there is none. */
+  nearestTrunk(x: number, z: number, within = CELL): number {
+    let nearest = Infinity
+    const cells = Math.ceil(within / CELL)
+    for (let ox = -cells; ox <= cells; ox++) {
+      for (let oz = -cells; oz <= cells; oz++) {
+        const bucket = this.cells.get(cellKey(x + ox * CELL, z + oz * CELL))
+        if (!bucket) continue
+        for (const tree of bucket) nearest = Math.min(nearest, Math.hypot(x - tree.x, z - tree.z))
+      }
+    }
+    return nearest <= within ? nearest : Infinity
+  }
+
   /** How high the canopy reaches near a point — how low is too low to fly. */
   canopyHeightNear(x: number, z: number, within = 14): number {
     let highest = -Infinity

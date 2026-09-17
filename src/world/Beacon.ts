@@ -16,12 +16,12 @@ export class Beacon {
   private readonly columnMaterial: THREE.MeshBasicMaterial
   private readonly ringMaterial: THREE.MeshBasicMaterial
 
-  constructor(position: THREE.Vector3, color: number) {
+  constructor(position: THREE.Vector3, color: number, private readonly height = HEIGHT, ringRadius = RING_OUTER) {
     this.group.position.copy(position)
 
-    const geometry = new THREE.CylinderGeometry(RADIUS, RADIUS * 1.5, HEIGHT, 16, 1, true)
-    geometry.translate(0, HEIGHT / 2, 0)
-    fadeUpward(geometry)
+    const geometry = new THREE.CylinderGeometry(RADIUS, RADIUS * 1.5, height, 16, 1, true)
+    geometry.translate(0, height / 2, 0)
+    fadeUpward(geometry, height)
 
     this.columnMaterial = new THREE.MeshBasicMaterial({
       color,
@@ -45,10 +45,19 @@ export class Beacon {
       depthWrite: false,
       fog: false,
     })
-    this.ring = new THREE.Mesh(new THREE.RingGeometry(RING_INNER, RING_OUTER, 40), this.ringMaterial)
+    this.ring = new THREE.Mesh(new THREE.RingGeometry(ringRadius * 0.75, ringRadius, 40), this.ringMaterial)
     this.ring.rotation.x = -Math.PI / 2
     this.ring.position.y = 0.4
     this.group.add(this.ring)
+  }
+
+  /** Stand somewhere else — an animal has moved. */
+  moveTo(position: { x: number; y: number; z: number }): void {
+    this.group.position.set(position.x, position.y, position.z)
+  }
+
+  setVisible(visible: boolean): void {
+    this.group.visible = visible
   }
 
   /**
@@ -63,6 +72,7 @@ export class Beacon {
 
     this.columnMaterial.opacity = (0.34 + 0.26 * pulse) * (1 - nearness)
     this.column.visible = this.columnMaterial.opacity > 0.01
+    void this.height
 
     this.ringMaterial.opacity = 0.45 + 0.4 * pulse
     const spread = 1 + 0.08 * pulse
@@ -72,11 +82,11 @@ export class Beacon {
 }
 
 /** Paint the column's vertex alpha so it dissolves toward the top. */
-function fadeUpward(geometry: THREE.CylinderGeometry): void {
+function fadeUpward(geometry: THREE.CylinderGeometry, height: number): void {
   const position = geometry.attributes.position
   const colors = new Float32Array(position.count * 4)
   for (let i = 0; i < position.count; i++) {
-    const alpha = 1 - Math.min(1, position.getY(i) / HEIGHT)
+    const alpha = 1 - Math.min(1, position.getY(i) / height)
     colors.set([1, 1, 1, alpha * alpha], i * 4)
   }
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 4))
@@ -84,7 +94,6 @@ function fadeUpward(geometry: THREE.CylinderGeometry): void {
 
 const HEIGHT = 190
 const RADIUS = 2.4
-const RING_INNER = 9
 const RING_OUTER = 12
 const PULSE_RATE = 2.1
 /** Gone by the time you are on the pad, full strength once properly away. */

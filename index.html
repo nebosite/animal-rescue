@@ -5,12 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Animal Rescue</title>
     <style>
-      html, body { margin: 0; height: 100%; overflow: hidden; background: #10131a; }
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #8fd3ff; }
       canvas { display: block; }
       #controls-hint {
         position: fixed; left: 16px; bottom: 14px;
         font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
-        color: #8fa2c4; pointer-events: none; user-select: none;
+        color: #b9c7e0; background: rgba(20, 27, 41, 0.72); padding: 6px 12px; border-radius: 8px;
+        pointer-events: none; user-select: none;
       }
       #controls-hint b { color: #dce4f2; font-weight: 600; }
       #controls-hint[data-device="keyboard"] .for-gamepad { display: none; }
@@ -40,19 +41,48 @@
       #objective[data-target="pickup"] { border-left-color: #d9a441; }
       #objective[data-target="base"] { border-left-color: #5b8fd9; }
 
-      #target-marker {
+      .target-marker {
         position: fixed; left: 0; top: 0; width: 0; height: 0;
         pointer-events: none; user-select: none; z-index: 5;
       }
-      #target-inner {
+      .target-marker[data-where="hidden"] { display: none; }
+      .target-inner {
         position: absolute; left: 0; top: 0; transform: translate(-50%, -50%);
         display: flex; flex-direction: column; align-items: center; gap: 3px;
         font: 700 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
         letter-spacing: 0.1em; white-space: nowrap; color: #f4e2b8;
         text-shadow: 0 0 6px rgba(0, 0, 0, 0.9), 0 0 2px rgba(0, 0, 0, 1);
+        opacity: 0.72;
       }
-      #target-arrow { font-size: 20px; line-height: 1; }
-      #target-marker[data-where="in-view"] #target-arrow { opacity: 0.35; font-size: 15px; }
+      .target-marker[data-primary="true"] .target-inner { opacity: 1; font-size: 12px; color: #fff1c9; }
+      .target-marker[data-urgent="true"] .target-inner { color: #ffb08a; }
+      .target-arrow { font-size: 20px; line-height: 1; }
+      .target-marker[data-where="in-view"] .target-arrow { opacity: 0.35; font-size: 15px; }
+      #clock {
+        position: fixed; left: 50%; top: 14px; transform: translateX(-50%);
+        margin-left: 330px;
+        font: 700 15px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+        letter-spacing: 0.12em; color: #eaf1fb;
+        background: rgba(20, 27, 41, 0.78); padding: 9px 14px; border-radius: 999px;
+        pointer-events: none; user-select: none;
+      }
+      #clock[data-closing="true"] { color: #ffb08a; animation: tick 1s steps(2, end) infinite; }
+      @keyframes tick { 50% { opacity: 0.55; } }
+      #shift-end {
+        position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+        background: rgba(12, 18, 30, 0.62); z-index: 20; user-select: none;
+      }
+      /* The display rule above outranks the browser's [hidden]; say it explicitly. */
+      #shift-end[hidden] { display: none; }
+      #shift-end-card {
+        background: rgba(20, 27, 41, 0.96); border: 1px solid rgba(143, 162, 196, 0.35);
+        border-radius: 14px; padding: 28px 40px; text-align: center; min-width: 320px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #eaf1fb;
+      }
+      #shift-end-title { font-size: 14px; letter-spacing: 0.22em; color: #9fb2d0; }
+      #shift-end-score { font-size: 56px; font-weight: 700; margin: 10px 0 4px; color: #5fd39a; }
+      #shift-end-detail { font-size: 13px; line-height: 1.6; color: #b9c7e0; }
+      #shift-end-prompt { margin-top: 18px; font-size: 13px; letter-spacing: 0.08em; color: #f0c674; }
       #integrity {
         position: fixed; right: 18px; top: 134px;
         width: 148px; background: rgba(20, 27, 41, 0.72);
@@ -119,10 +149,25 @@
       <div id="objective-task">Find Pip the fox kit</div>
       <div id="objective-hint">Press any key to begin.</div>
     </div>
-    <div id="target-marker" data-where="off-screen">
-      <div id="target-inner"><span id="target-arrow">▲</span><span id="target-label"></span></div>
+    <div class="target-marker" id="target-marker-0" data-where="hidden">
+      <div class="target-inner"><span class="target-arrow">▲</span><span class="target-label"></span></div>
+    </div>
+    <div class="target-marker" id="target-marker-1" data-where="hidden">
+      <div class="target-inner"><span class="target-arrow">▲</span><span class="target-label"></span></div>
+    </div>
+    <div class="target-marker" id="target-marker-2" data-where="hidden">
+      <div class="target-inner"><span class="target-arrow">▲</span><span class="target-label"></span></div>
     </div>
     <div id="score">SCORE 0</div>
+    <div id="clock" data-closing="false">5:00</div>
+    <div id="shift-end" hidden>
+      <div id="shift-end-card">
+        <div id="shift-end-title">Shift over</div>
+        <div id="shift-end-score">0</div>
+        <div id="shift-end-detail"></div>
+        <div id="shift-end-prompt">Press <b>R</b> to fly another shift</div>
+      </div>
+    </div>
     <div id="course"><span id="compass">▲</span><span id="range">0 m</span></div>
     <div id="integrity" data-state="fine">AIRFRAME<div id="integrity-track"><div id="integrity-bar"></div></div></div>
     <div id="radio" aria-live="polite"><span id="radio-speaker"></span><span id="radio-text"></span></div>

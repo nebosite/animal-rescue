@@ -29,9 +29,9 @@ export class Announcer {
   }
 
   /** Thanks — or something grudging if the trip cost the animal some patience. */
-  delivered(animal: AnimalProfile, credited: number): RadioLine {
-    const lines = credited < animal.value ? animal.lines.grudging : animal.lines.thanks
-    const key = credited < animal.value ? `${animal.id}.grudging` : `${animal.id}.thanks`
+  delivered(animal: AnimalProfile, scolded: boolean): RadioLine {
+    const lines = scolded ? animal.lines.grudging : animal.lines.thanks
+    const key = scolded ? `${animal.id}.grudging` : `${animal.id}.thanks`
     return this.animal(animal, this.pick(key, lines))
   }
 
@@ -40,6 +40,21 @@ export class Announcer {
     if (rough === 'hard-landing') return this.chief(this.pick('chief.hard', CHIEF.lines.hardLanding))
     if (rough === 'bump') return this.chief(this.pick('chief.bump', CHIEF.lines.bump))
     return null
+  }
+
+  /** An animal running from the fire to somewhere new. */
+  bolted(animal: AnimalProfile): RadioLine {
+    return this.animal(animal, this.pick(`${animal.id}.bolt`, animal.lines.bolt))
+  }
+
+  /** The Chief pointing at whoever the fire is about to reach. */
+  fireClosingOn(animal: AnimalProfile): RadioLine {
+    return this.chief(this.pick('chief.closing', CHIEF.lines.fireClosing).replace('{name}', animal.name))
+  }
+
+  /** The Chief calling time. */
+  shiftOver(rescued: number): RadioLine {
+    return this.chief(this.pick('chief.over', CHIEF.lines.shiftOver).replace('{count}', String(rescued)))
   }
 
   /** The Chief listening to his helicopter mow the forest. */

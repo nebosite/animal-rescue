@@ -23,8 +23,8 @@ describe('Announcer', () => {
 
   it('thanks you properly for a smooth trip, and grudgingly for a rough one', () => {
     const announcer = new Announcer()
-    expect(duchess.lines.thanks).toContain(announcer.delivered(duchess, duchess.value).text)
-    expect(duchess.lines.grudging).toContain(announcer.delivered(duchess, duchess.value - 1).text)
+    expect(duchess.lines.thanks).toContain(announcer.delivered(duchess, false).text)
+    expect(duchess.lines.grudging).toContain(announcer.delivered(duchess, true).text)
   })
 
   it('has the Chief speak up about landings and bumps, but not banking', () => {
@@ -42,6 +42,22 @@ describe('Announcer', () => {
       expect(line.voice).toBe(CHIEF.voice)
     }
     expect(CHIEF.lines.scorched).toContain(new Announcer().scorched().text)
+  })
+
+  it('lets an animal shout as it runs from the fire, and has the Chief name who is in trouble', () => {
+    const announcer = new Announcer()
+    const bolt = announcer.bolted(duchess)
+    expect(bolt.speaker).toBe('Duchess')
+    expect(duchess.lines.bolt).toContain(bolt.text)
+
+    const closing = announcer.fireClosingOn(duchess)
+    expect(closing.speaker).toBe(CHIEF.name)
+    expect(closing.text).toContain('Duchess')
+    expect(closing.text).not.toContain('{name}')
+
+    const over = announcer.shiftOver(4)
+    expect(over.text).toContain('4')
+    expect(over.text).not.toContain('{count}')
   })
 
   it('gives every animal in the roster something to say at each moment', () => {
