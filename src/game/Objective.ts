@@ -90,7 +90,7 @@ function approachHint(situation: Situation, target: 'pickup' | 'base'): string {
   const spot = target === 'pickup' ? animalName : 'the pad'
 
   if (onGround && !overTarget) {
-    return 'hold A to lift off, then follow the beacon.'
+    return 'hold W to lift off, then follow the beacon.'
   }
 
   if (range > APPROACH_RANGE) {
@@ -105,7 +105,7 @@ function approachHint(situation: Situation, target: 'pickup' | 'base'): string {
   }
 
   if (heightAboveTarget > LANDING_HEIGHT) {
-    return `you are over ${spot} — hold Z to come down (${Math.round(heightAboveTarget)} m up).`
+    return `you are over ${spot} — hold S to come down (${Math.round(heightAboveTarget)} m up).`
   }
 
   return carrying

@@ -87,6 +87,7 @@ const CLEARANCE_SLACK = 25
 const YAW_GAIN = 1.6
 const CLIMB_GAIN = 0.06
 const BRAKE_GAIN = 0.35
-const DESCENT = 0.55
+/** A fraction of the collective: the Chief lands it, he does not drop it. */
+const DESCENT = 0.38
 /** Beyond this many radians off the nose, it turns instead of flying. */
 const AIM_TOLERANCE = 0.9

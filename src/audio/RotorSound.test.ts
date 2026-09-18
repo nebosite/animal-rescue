@@ -14,7 +14,7 @@ describe('rotorTargets', () => {
 
   it('adds a little pitch and volume with ground speed', () => {
     const hover = rotorTargets(0.3, 0)
-    const cruise = rotorTargets(0.3, 31)
+    const cruise = rotorTargets(0.3, 46)
     expect(cruise.droneHz).toBeGreaterThan(hover.droneHz)
     expect(cruise.gain).toBeGreaterThan(hover.gain)
   })
@@ -33,6 +33,6 @@ describe('rotorTargets', () => {
 
   it('keeps the chop in the range a rotor actually thumps at', () => {
     expect(rotorTargets(0, 0).chopHz).toBeGreaterThanOrEqual(8)
-    expect(rotorTargets(1, 31).chopHz).toBeLessThanOrEqual(24)
+    expect(rotorTargets(1, 46).chopHz).toBeLessThanOrEqual(24)
   })
 })

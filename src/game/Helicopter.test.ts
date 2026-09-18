@@ -69,8 +69,8 @@ describe('Helicopter flight model', () => {
     const cruise = helicopter.speed
     fly(helicopter, { pitch: 1 }, 1)
     expect(helicopter.speed).toBeLessThan(cruise * 1.05)
-    expect(cruise).toBeGreaterThan(20)
-    expect(cruise).toBeLessThan(40)
+    expect(cruise).toBeGreaterThan(38)
+    expect(cruise).toBeLessThan(55)
   })
 
   it('yaw turns the nose right, and forward follows the nose', () => {
@@ -131,7 +131,8 @@ describe('Helicopter flight model', () => {
     for (let i = 0; i < 300; i++) {
       hard.update({ ...noInput(), collective: -1 }, 1 / 60)
       if (hard.justLanded) hardImpact = hard.impactSpeed
-      soft.update({ ...noInput(), collective: -0.3 }, 1 / 60)
+      // A fifth of the collective: the feathered descent a careful pilot uses.
+      soft.update({ ...noInput(), collective: -0.2 }, 1 / 60)
       if (soft.justLanded) softImpact = soft.impactSpeed
     }
     expect(hard.isOnGround).toBe(true)

@@ -61,8 +61,13 @@ describe('guidanceFor', () => {
 
   it('tells you to descend once you are over the animal, with the height', () => {
     const guidance = at({ range: 4, overTarget: true, heightAboveTarget: 32, speed: 1 })
-    expect(guidance.hint).toContain('hold Z')
+    expect(guidance.hint).toContain('hold S')
     expect(guidance.hint).toContain('32')
+  })
+
+  it('names the current keys, not the old ones', () => {
+    expect(at({ onGround: true }).hint).toContain('hold W')
+    expect(at({ onGround: true }).hint).not.toContain('hold A')
   })
 
   it('asks for a gentle touchdown at the very end, and says why', () => {

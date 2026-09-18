@@ -1,11 +1,21 @@
 import * as THREE from 'three'
 
+/** Screen space the marker must stay out of — the HUD panels — in CSS pixels from each edge. */
+export interface Insets {
+  top: number
+  right: number
+  bottom: number
+  left: number
+}
+
 /**
  * An on-screen pointer to wherever the player should be going.
  *
  * When the target is in view it sits on it; when it is not — which, on a map
  * this size, is most of the time — it pins to the edge of the screen and
  * points the way, so there is never a moment of "which way do I even turn".
+ * The edge it pins to is inset past the HUD, so a pinned marker never lands
+ * on top of the score or under the radio.
  */
 export class TargetMarker {
   private readonly projected = new THREE.Vector3()
@@ -30,7 +40,7 @@ export class TargetMarker {
   }
 
   /** Place the marker for this frame. */
-  update(target: THREE.Vector3, camera: THREE.Camera, width: number, height: number, text: string): void {
+  update(target: THREE.Vector3, camera: THREE.Camera, width: number, height: number, text: string, insets: Insets = NO_INSETS): void {
     this.projected.copy(target).project(camera)
 
     // Behind the camera, the projection mirrors; flip it so the arrow points
@@ -47,13 +57,16 @@ export class TargetMarker {
       y /= longest
     }
 
-    const marginX = (MARGIN / width) * 2
-    const marginY = (MARGIN / height) * 2
-    x = clamp(x, -1 + marginX, 1 - marginX)
-    y = clamp(y, -1 + marginY, 1 - marginY)
+    // Convert to pixels, then keep the whole marker — not just its centre —
+    // inside the frame the HUD leaves free. Its size depends on the label and
+    // the text scale, so measure rather than assume.
+    const halfWidth = this.label.parentElement!.offsetWidth / 2 + MARGIN
+    const halfHeight = this.label.parentElement!.offsetHeight / 2 + MARGIN
+    let left = ((x + 1) / 2) * width
+    let top = ((1 - y) / 2) * height
+    left = clamp(left, insets.left + halfWidth, width - insets.right - halfWidth)
+    top = clamp(top, insets.top + halfHeight, height - insets.bottom - halfHeight)
 
-    const left = ((x + 1) / 2) * width
-    const top = ((1 - y) / 2) * height
     this.element.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`
     this.element.dataset.where = onScreen ? 'in-view' : 'off-screen'
 
@@ -67,5 +80,6 @@ function clamp(value: number, low: number, high: number): number {
   return Math.min(high, Math.max(low, value))
 }
 
-/** Keep the marker clear of the very edge of the frame. */
-const MARGIN = 54
+const NO_INSETS: Insets = { top: 0, right: 0, bottom: 0, left: 0 }
+/** Breathing room between a marker and the edge of whatever frame it is given. */
+const MARGIN = 10

@@ -223,14 +223,16 @@ const TURN_BANK = 0.3
 const TILT_RESPONSE = 6
 
 /** Horizontal acceleration at full lean, and the drag that caps top speed. */
-const THRUST_ACCEL = 34
+const THRUST_ACCEL = 51
 const DRAG = 1.1
-/** Top speed works out to THRUST_ACCEL / DRAG, about 31 units per second. */
+/** Top speed works out to THRUST_ACCEL / DRAG, about 46 units per second. */
+export const TOP_SPEED = THRUST_ACCEL / DRAG
 
 const YAW_RATE = 1.9
 const YAW_RESPONSE = 8
 
-const COLLECTIVE_ACCEL = 26
+/** Climb and descent: about 18 units per second flat out. */
+const COLLECTIVE_ACCEL = 39
 const VERTICAL_DRAG = 2.2
 const VERTICAL_TERMINAL_SPEED = COLLECTIVE_ACCEL / VERTICAL_DRAG
 

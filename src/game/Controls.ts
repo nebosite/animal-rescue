@@ -24,6 +24,11 @@ export class Controls {
     return this.gamepad.connected
   }
 
+  /** What the controller calls itself, or empty. */
+  get controllerName(): string {
+    return this.gamepad.name
+  }
+
   /** Read every device once and return the combined request. Call once per frame. */
   poll(): FlightInput {
     this.gamepad.poll()

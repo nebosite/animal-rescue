@@ -196,6 +196,7 @@ renderer.setAnimationLoop(() => {
   guide()
   soundscape?.frame(helicopter, surroundings(), dt)
   radio.update(dt)
+  noticeController()
   hud.showGamepad(controls.usingGamepad)
   hud.setIntegrity(airframe.integrity)
   hud.setClock(shift.clock, shift.closing)
@@ -203,6 +204,20 @@ renderer.setAnimationLoop(() => {
 
   renderer.render(world.scene, world.camera)
 })
+
+/**
+ * Say so when a controller comes live. Browsers only list a pad once a
+ * button on it has been pressed, so without this a player can hold a working
+ * controller and never be sure the game noticed it.
+ */
+let controllerNoticed = false
+function noticeController(): void {
+  const live = controls.usingGamepad
+  if (live && !controllerNoticed) {
+    hud.flash(`CONTROLLER CONNECTED — ${controls.controllerName.toUpperCase().slice(0, 28) || 'GAMEPAD'}`)
+  }
+  controllerNoticed = live
+}
 
 /** What the soundscape needs to know about where you are. */
 function surroundings() {
@@ -399,10 +414,11 @@ function guide(): void {
   // One marker per animal out there; going home, one marker for the base.
   const width = window.innerWidth
   const height = window.innerHeight
+  const insets = hudInsets(width, height)
   if (homeward) {
     MARKER_AT.copy(world.rescuePad.position).setY(world.rescuePad.position.y + MARKER_HEIGHT)
     markers[0].emphasise(true, false)
-    markers[0].update(MARKER_AT, world.camera, width, height, `BASE  ${Math.round(range)}m`)
+    markers[0].update(MARKER_AT, world.camera, width, height, `BASE  ${Math.round(range)}m`, insets)
     for (let i = 1; i < markers.length; i++) markers[i].hide()
     return
   }
@@ -412,8 +428,35 @@ function guide(): void {
     const distance = Math.hypot(w.site.x - helicopter.position.x, w.site.z - helicopter.position.z)
     MARKER_AT.set(w.site.x, w.site.y + MARKER_HEIGHT, w.site.z)
     marker.emphasise(w === going, w === threatened)
-    marker.update(MARKER_AT, world.camera, width, height, `${w.animal.name.toUpperCase()}  ${Math.round(distance)}m · ${w.credit}pt`)
+    marker.update(MARKER_AT, world.camera, width, height, `${w.animal.name.toUpperCase()}  ${Math.round(distance)}m · ${w.credit}pt`, insets)
   })
+}
+
+/**
+ * How much of each screen edge the HUD panels occupy, measured from the real
+ * boxes, so pinned markers stay out from under them at any text size.
+ */
+function hudInsets(width: number, height: number) {
+  const objective = HUD_PANELS.objective.getBoundingClientRect()
+  const stack = HUD_PANELS.rightStack.getBoundingClientRect()
+  const hint = HUD_PANELS.hint.getBoundingClientRect()
+  const radio = HUD_PANELS.radio.getBoundingClientRect()
+  // The panels along the top and bottom span most of the width, so treat
+  // them as full-width bands rather than trying to route markers between them.
+  return {
+    top: Math.max(objective.bottom, stack.bottom),
+    bottom: height - Math.min(hint.top, radio.top),
+    left: 0,
+    right: 0,
+  }
+  void width
+}
+
+const HUD_PANELS = {
+  objective: document.getElementById('objective')!,
+  rightStack: document.getElementById('right-stack')!,
+  hint: document.getElementById('controls-hint')!,
+  radio: document.getElementById('radio')!,
 }
 
 // Reused so the render loop is not allocating a vector every frame.

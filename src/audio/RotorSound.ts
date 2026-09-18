@@ -1,3 +1,4 @@
+import { TOP_SPEED } from '../game/Helicopter'
 import type { AudioEngine } from './AudioEngine'
 import { createNoiseBuffer } from './NoiseBuffer'
 import type { Reverb } from './Reverb'
@@ -140,8 +141,6 @@ function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value))
 }
 
-/** Matches the flight model's top speed, so `pace` reads 1 at full cruise. */
-const TOP_SPEED = 31
 /** Loudness while idling on the ground. Below about 0.3 it reads as silence after a pickup. */
 const IDLE_GAIN = 0.32
 /** Time constant for parameter changes, seconds. */

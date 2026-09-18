@@ -205,7 +205,8 @@ const BOLT_AT = 0.25
 /** Within this of the fire an animal counts as threatened. */
 const WORRYING_RANGE = 70
 const KINDS: readonly SiteKind[] = ['clearing', 'hilltop', 'fireline', 'canyon', 'ridge']
-const PAR_SPEED = 20
+/** A brisk direct flight, a little under the helicopter's top speed. */
+const PAR_SPEED = 30
 const PAR_SLACK = 10
 const QUICK_BONUS = 2
 const GENTLE_BONUS = 1

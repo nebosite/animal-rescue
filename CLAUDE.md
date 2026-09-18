@@ -80,16 +80,19 @@ in, and thrust comes from the lean — so it tips before it goes and drifts when
 released. Forward is wherever the nose points; the chase camera swings round
 behind the tail with a little lag.
 
-Laid out like the real thing: the arrows are the cyclic, `Q`/`E` are the
-anti-torque pedals, and `A`/`Z` are the collective — two stacked keys under
-the left hand.
+Two sticks, one per hand — the same on keyboard and controller. The left
+hand is the collective and the pedals; the right hand is the cyclic.
 
 | | Keyboard | Controller (standard layout) |
 |---|---|---|
-| nose down / up (forward / back) | `W` `S` or `↑` `↓` | left stick up / down |
-| slide (roll) | `←` `→` | left stick left / right |
-| turn (yaw) | `Q` `E` | right stick, or `LB` `RB` |
-| climb / descend (collective) | `A` or `CapsLock` / `Z` or `Shift` | `RT` / `LT` |
+| climb / descend (collective) | `W` / `S` | left stick up / down, or `RT` / `LT` |
+| turn (yaw) | `A` / `D` | left stick left / right, or `LB` / `RB` |
+| nose down / up (forward / back) | `↑` / `↓` | right stick up / down |
+| slide (roll) | `←` / `→` | right stick left / right |
+
+Top speed is about 46 units a second and the collective moves you about 18 a
+second flat out. Browsers only list a controller once a button on it has been
+pressed; the HUD flashes its name when it comes live.
 
 Both devices are live at once and sum, clamped to full deflection. On the
 ground the skids grip: you lift off before you can move. The four axes are
@@ -141,6 +144,10 @@ same flight model with no special cases, and is tested by simply letting it fly
 from anywhere on the map and seeing where it ends up.
 
 ## Look
+
+Big, playful type: every HUD size is a base times the `--ui` CSS variable
+(3 at the moment) in the font Fredoka, with rounded system fallbacks if the
+web font cannot load.
 
 A bright, saturated day: sky blue, fresh greens, an orange canyon, warm stone,
 a red helicopter. The first palette was a smoky dusk and play-tested as gloomy

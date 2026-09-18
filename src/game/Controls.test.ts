@@ -11,30 +11,32 @@ const pad = (axes: number[]): GamepadLike => ({
 describe('Controls', () => {
   it('passes keyboard input through when no controller is present', () => {
     const controls = new Controls(new GamepadInput(() => []))
-    controls.keyboard.press('KeyW', true)
+    controls.keyboard.press('ArrowUp', true)
     expect(controls.poll().pitch).toBe(1)
     expect(controls.usingGamepad).toBe(false)
+    expect(controls.controllerName).toBe('')
   })
 
   it('merges the collective from the keyboard with the controller triggers', () => {
     const controls = new Controls(new GamepadInput(() => []))
-    controls.keyboard.press('KeyA', true)
+    controls.keyboard.press('KeyW', true)
     expect(controls.poll().collective).toBe(1)
-    controls.keyboard.press('KeyZ', true)
+    controls.keyboard.press('KeyS', true)
     expect(controls.poll().collective).toBe(0)
   })
 
   it('merges keyboard and controller, clamped to full deflection', () => {
-    const controls = new Controls(new GamepadInput(() => [pad([0, -1, 0, 0])]))
-    controls.keyboard.press('KeyW', true)
+    // Right stick forward on the pad, up arrow on the keyboard: still just 1.
+    const controls = new Controls(new GamepadInput(() => [pad([0, 0, 0, -1])]))
+    controls.keyboard.press('ArrowUp', true)
     const input = controls.poll()
     expect(input.pitch).toBe(1)
     expect(controls.usingGamepad).toBe(true)
   })
 
   it('lets one device cancel the other', () => {
-    const controls = new Controls(new GamepadInput(() => [pad([0, 1, 0, 0])])) // stick pulled back
-    controls.keyboard.press('KeyW', true)
+    const controls = new Controls(new GamepadInput(() => [pad([0, 0, 0, 1])])) // right stick pulled back
+    controls.keyboard.press('ArrowUp', true)
     expect(controls.poll().pitch).toBe(0)
   })
 })

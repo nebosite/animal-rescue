@@ -2,6 +2,7 @@ import { clampAxis, noInput, type FlightInput } from './FlightInput'
 
 /** The slice of the browser Gamepad API this class actually reads. */
 export interface GamepadLike {
+  readonly id?: string
   readonly connected: boolean
   readonly axes: ReadonlyArray<number>
   readonly buttons: ReadonlyArray<{ readonly value: number; readonly pressed: boolean }>
@@ -12,41 +13,51 @@ export type GamepadSource = () => ReadonlyArray<GamepadLike | null>
 
 /**
  * Reads the first connected controller as flight axes, using the W3C
- * "standard" layout that Xbox and PlayStation pads report in every browser:
+ * "standard" layout that Xbox and PlayStation pads report in every browser,
+ * as two sticks — the same scheme as the keyboard:
  *
- *   left stick    pitch (up is forward) and roll
- *   right stick   yaw, with the bumpers as an alternative
- *   triggers      collective — right climbs, left descends
+ *   left stick     collective up and down, yaw left and right
+ *   right stick    the cyclic: pitch forward and back, roll left and right
+ *   triggers       collective too — right climbs, left descends
+ *   bumpers        yaw too
  *
  * Polled once per frame; the Gamepad API has no events for stick movement.
+ * Browsers only list a pad once a button on it has been pressed, so a pad
+ * that "does not work" usually just has not been touched yet.
  */
 export class GamepadInput {
   readonly input: FlightInput = noInput()
-  private active = false
+  private active: GamepadLike | null = null
 
   constructor(private readonly source: GamepadSource = browserGamepads) {}
 
   /** True while a controller is plugged in and reporting. */
   get connected(): boolean {
-    return this.active
+    return this.active !== null
+  }
+
+  /** What the browser calls the controller, for telling the player it is live. */
+  get name(): string {
+    return this.active?.id ?? ''
   }
 
   poll(): void {
     const pad = this.source().find((candidate) => candidate?.connected) ?? null
-    this.active = pad !== null
+    this.active = pad
     if (!pad) {
       Object.assign(this.input, noInput())
       return
     }
 
     const leftX = deadZone(axis(pad, 0))
-    const forward = deadZone(-axis(pad, 1)) // sticks report up as negative
+    const leftUp = deadZone(-axis(pad, 1)) // sticks report up as negative
     const rightX = deadZone(axis(pad, 2))
+    const rightUp = deadZone(-axis(pad, 3))
 
-    this.input.pitch = forward
-    this.input.roll = leftX
-    this.input.yaw = clampAxis(rightX + button(pad, RIGHT_BUMPER) - button(pad, LEFT_BUMPER))
-    this.input.collective = clampAxis(button(pad, RIGHT_TRIGGER) - button(pad, LEFT_TRIGGER))
+    this.input.collective = clampAxis(leftUp + trigger(pad, RIGHT_TRIGGER) - trigger(pad, LEFT_TRIGGER))
+    this.input.yaw = clampAxis(leftX + button(pad, RIGHT_BUMPER) - button(pad, LEFT_BUMPER))
+    this.input.pitch = rightUp
+    this.input.roll = rightX
   }
 }
 
@@ -56,6 +67,13 @@ function axis(pad: GamepadLike, index: number): number {
 
 function button(pad: GamepadLike, index: number): number {
   return pad.buttons[index]?.value ?? 0
+}
+
+/** Triggers report 0..1 as button values on standard pads; treat a bare press as full. */
+function trigger(pad: GamepadLike, index: number): number {
+  const entry = pad.buttons[index]
+  if (!entry) return 0
+  return entry.value > 0 ? entry.value : entry.pressed ? 1 : 0
 }
 
 /** Ignore stick noise near centre, and rescale so full travel still reaches 1. */

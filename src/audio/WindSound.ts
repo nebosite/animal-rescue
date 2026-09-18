@@ -1,3 +1,4 @@
+import { TOP_SPEED } from '../game/Helicopter'
 import type { AudioEngine } from './AudioEngine'
 import { createNoiseBuffer } from './NoiseBuffer'
 
@@ -95,6 +96,4 @@ function clamp01(value: number): number {
 
 /** Height above the ground at which wind reaches full strength. */
 const FULL_WIND_ALTITUDE = 40
-/** Matches the flight model's top speed. */
-const TOP_SPEED = 31
 const SMOOTHING = 0.4
