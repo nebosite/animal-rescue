@@ -37,6 +37,10 @@ later layer.
 Web-first, built with TypeScript + Three.js + Vite.
 
 - **Sharing is a URL.** `npm run build` produces static files that host anywhere.
+  `.github/workflows/pages.yml` publishes them to GitHub Pages on every push
+  to `main`, after the tests pass, at `https://<owner>.github.io/<repo>/`. The
+  workflow sets `VITE_BASE` from the repository name so the sub-path resolves;
+  locally the base stays `/`.
 - **Steam stays open.** The intended path is an Electron wrapper plus
   `steamworks.js` if it ever gets there. That is a *later* layer — do not add
   Electron, packaging, or store plumbing until the game is worth selling.
