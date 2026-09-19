@@ -3,7 +3,7 @@
 A helicopter game about the moment you drop in low, get a frightened animal
 aboard, and haul out with the smoke closing in.
 
-**Play it:** https://nebosite.github.io/mcpdemo1/
+**Play it:** https://nebosite.github.io/animal-rescue/
 
 Press any key to start the shift. You have five minutes. Three named animals
 are waiting out in the hills — a fox kit in a clearing, a bear cub on a
