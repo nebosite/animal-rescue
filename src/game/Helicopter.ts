@@ -32,6 +32,11 @@ export class Helicopter {
   justBumped = false
   /** True while the helicopter is dragging through something solid. */
   justStruck = false
+  /**
+   * Multiplies thrust and collective. The autopilot winds this up to ferry a
+   * wreck home quickly; a pilot always flies at 1.
+   */
+  boost = 1
 
   private yawRate = 0
   /** The stick-driven part of the roll, before the cosmetic turn-bank is added. */
@@ -149,8 +154,8 @@ export class Helicopter {
 
     // Thrust follows the actual lean, not the raw input — that is the lag that
     // makes it feel like a machine rather than a cursor.
-    const forward = (this.pitch / MAX_PITCH) * THRUST_ACCEL
-    const sideways = (this.leanRoll / MAX_ROLL) * THRUST_ACCEL
+    const forward = (this.pitch / MAX_PITCH) * THRUST_ACCEL * this.boost
+    const sideways = (this.leanRoll / MAX_ROLL) * THRUST_ACCEL * this.boost
 
     const sinH = Math.sin(this.heading)
     const cosH = Math.cos(this.heading)
@@ -169,8 +174,23 @@ export class Helicopter {
   }
 
   private applyCollective(collective: number, dt: number): void {
-    this.velocity.y += collective * COLLECTIVE_ACCEL * dt
+    this.velocity.y += collective * COLLECTIVE_ACCEL * this.boost * dt
     this.velocity.y *= Math.exp(-VERTICAL_DRAG * dt)
+  }
+
+  /**
+   * Air that is doing something of its own: a thermal lifting the machine and
+   * buffeting shoving it about. Called after the update that moved it, so the
+   * rising air is felt on top of whatever the pilot asked for.
+   */
+  applyAirCurrent(lift: number, buffetX: number, buffetZ: number, dt: number): void {
+    this.velocity.y += lift * dt
+    this.velocity.x += buffetX * dt
+    this.velocity.z += buffetZ * dt
+    // Rough air unsettles the attitude too, which is most of what sells it.
+    const shake = Math.hypot(buffetX, buffetZ) * BUFFET_TILT * dt
+    this.pitch += buffetZ * shake * 0.02
+    this.roll += buffetX * shake * 0.02
   }
 
   private integrate(dt: number): void {
@@ -239,3 +259,5 @@ const VERTICAL_TERMINAL_SPEED = COLLECTIVE_ACCEL / VERTICAL_DRAG
 const GROUND_FRICTION = 10
 /** How hard foliage drags: heavy enough to feel, light enough to fly out of. */
 const STRIKE_DRAG = 5.5
+/** How much buffeting rocks the attitude as well as shoving the machine. */
+const BUFFET_TILT = 0.6

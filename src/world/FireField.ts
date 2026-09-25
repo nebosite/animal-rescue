@@ -115,12 +115,16 @@ export class FireField {
         continue
       }
 
+      // Flames live in the burning band, not the burnt-out middle: as a patch
+      // ages its fire migrates outward into a ring, leaving black behind.
+      const hollow = this.fire.hollowOf(patch)
       embers.forEach((ember, i) => {
-        const x = patch.x + Math.cos(ember.angle) * ember.spread * patch.radius
-        const z = patch.z + Math.sin(ember.angle) * ember.spread * patch.radius
+        const across = hollow + ember.spread * (1 - hollow)
+        const x = patch.x + Math.cos(ember.angle) * across * patch.radius
+        const z = patch.z + Math.sin(ember.angle) * across * patch.radius
         // The ground under a flame only moves when the patch has grown; refresh
         // it then rather than sampling the terrain for every flame every frame.
-        if (patch.radius - ember.seededAtRadius > RESEED_AFTER) {
+        if (Math.abs(patch.radius - ember.seededAtRadius) > RESEED_AFTER) {
           ember.ground = this.terrain.heightAt(x, z)
           ember.seededAtRadius = patch.radius
         }

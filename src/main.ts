@@ -14,6 +14,11 @@ import { Autopilot } from './game/Autopilot'
 import { Cooldown } from './game/Cooldown'
 import { Shift } from './game/Shift'
 import { noInput } from './game/FlightInput'
+import { Turbulence } from './game/Turbulence'
+import { Copilot } from './game/Copilot'
+import { CopilotInput } from './game/CopilotInput'
+import { Winch } from './game/Winch'
+import { WaterTank, DROP_RADIUS } from './game/WaterTank'
 import { CHIEF_FUSSINESS } from './game/AnimalProfile'
 import { AudioEngine } from './audio/AudioEngine'
 import { Soundscape } from './audio/Soundscape'
@@ -51,9 +56,19 @@ const handling = new Handling()
 const announcer = new Announcer()
 const airframe = new Airframe()
 const autopilot = new Autopilot()
+const air = new Turbulence()
+const copilot = new Copilot()
+const copilotSeat = new CopilotInput()
+copilotSeat.attach(window)
+const winch = new Winch()
+const tank = new WaterTank()
 // The Chief shouts about the fire and the trees, but not sixty times a second.
 const fireWarning = new Cooldown(4)
 const treeWarning = new Cooldown(6)
+// Bram talks a lot. These stop him talking over himself.
+const ferretChatter = new Cooldown(9)
+const ferretAlarm = new Cooldown(5)
+let seatTaken = false
 /** Animals the Chief has already flagged as in the fire's path. */
 const flagged = new Set<Waiting>()
 /** The shift, and the fire, begin with the first key — not while the page loads. */
@@ -76,6 +91,7 @@ audio.onStart(() => {
   soundscape = new Soundscape(audio)
   presentAnimals()
   radio.say(announcer.welcome())
+  radio.say(announcer.ferret('welcome'))
   underway = true
 })
 new VolumeControl(
@@ -100,6 +116,10 @@ if (import.meta.env.DEV) {
     airframe,
     autopilot,
     shift,
+    winch,
+    tank,
+    copilot,
+    copilotSeat,
     get soundscape() { return soundscape },
   }
 }
@@ -154,13 +174,19 @@ renderer.setAnimationLoop(() => {
       ? autopilot.update(helicopter, world.rescuePad.position, ground)
       : controls.poll()
   helicopter.update(flying, dt, ground)
+  flyThroughFire(ground, dt)
   clipTrees(dt)
+  workTheCopilot(ground, dt)
 
   world.helicopter.moveTo(helicopter.position)
   world.helicopter.setAttitude(helicopter.heading, helicopter.pitch, helicopter.roll)
   world.helicopter.spin(dt)
   world.follow(helicopter.position, helicopter.heading, dt)
-  world.updateEffects(timer.getElapsed(), helicopter.position)
+  world.updateEffects(timer.getElapsed(), dt, helicopter.position)
+  world.winchLine.update(helicopter.position, winch.length)
+  // Burning the whole forest every frame is wasted work: the answer changes
+  // only as the fire creeps.
+  if (underway && !shift.over && burnCheck.advance(dt)) world.burnTrees()
 
   const landedPad = LandingPad.landedOn(world.pads, helicopter.position, helicopter.isOnGround)
   world.highlightPad(landedPad)
@@ -170,6 +196,18 @@ renderer.setAnimationLoop(() => {
   judgeFlying(dt)
 
   if (!shift.over) {
+    // The line catches an animal without ever touching down — the copilot's
+    // job, and the one thing a second player can do that really matters.
+    if (rescue.winchUp(helicopter.position, winch.hookHeight(helicopter.position.y), helicopter.speed) === 'picked-up') {
+      const aboard = rescue.carrying!
+      flagged.delete(aboard)
+      winch.stow()
+      hud.flash(`${aboard.animal.name.toUpperCase()} ON THE WINCH — TO THE RESCUE BASE`)
+      soundscape?.pickedUp()
+      radio.say(announcer.ferret('winchHooked'))
+      presentAnimals()
+    }
+
     switch (rescue.landedOn(landedPad, helicopter.position, helicopter.isOnGround, helicopter.impactSpeed)) {
       case 'picked-up': {
         const aboard = rescue.carrying!
@@ -199,6 +237,7 @@ renderer.setAnimationLoop(() => {
   noticeController()
   hud.showGamepad(controls.usingGamepad)
   hud.setIntegrity(airframe.integrity)
+  hud.setCrew(winch.extended, tank.fraction, tank.loads, copilotSeat.taken)
   hud.setClock(shift.clock, shift.closing)
   hud.update(standingStatus(landedPad), rescue.score)
 
@@ -229,6 +268,85 @@ function surroundings() {
   }
 }
 
+/**
+ * The air over a fire is doing something of its own: it lifts, and it shoves.
+ * Applied after the update that moved the helicopter, so it is felt on top of
+ * whatever the pilot asked for rather than instead of it.
+ */
+function flyThroughFire(ground: number, dt: number): void {
+  air.advance(dt)
+  const agl = helicopter.position.y - (ground + SKID_HEIGHT)
+  const lift = world.fire.updraftAt(helicopter.position.x, helicopter.position.z, agl)
+  const rough = world.fire.roughnessAt(helicopter.position.x, helicopter.position.z, agl)
+  if (lift <= 0 && rough <= 0) return
+
+  helicopter.applyAirCurrent(lift, air.buffetX(rough), air.buffetZ(rough), dt)
+  if (rough > 0.45 && ferretAlarm.tryFire()) radio.say(announcer.ferret('updraft'))
+}
+
+/**
+ * The copilot's two jobs — the winch and the water — done by Bram, or by a
+ * second player once they take the seat.
+ */
+function workTheCopilot(ground: number, dt: number): void {
+  ferretChatter.advance(dt)
+  ferretAlarm.advance(dt)
+
+  if (shift.over || airframe.needsRepair) {
+    winch.update(false, dt)
+    return
+  }
+
+  const command = copilotSeat.poll()
+  if (copilotSeat.taken !== seatTaken) {
+    seatTaken = copilotSeat.taken
+    copilot.takenOver = seatTaken
+    hud.flash(seatTaken ? 'PLAYER TWO HAS THE WINCH' : 'BRAM HAS THE WINCH')
+    radio.say(announcer.ferret(seatTaken ? 'takeover' : 'handback'))
+  }
+
+  const going = rescue.carrying ? null : rescue.recommended(helicopter.position)
+  const threatened = rescue.mostThreatened()
+  const orders = copilot.orders({
+    takenOver: copilotSeat.taken,
+    carrying: rescue.carrying !== null,
+    overAnimal: !!going && Math.hypot(going.site.x - helicopter.position.x, going.site.z - helicopter.position.z) <= WINCH_REACH,
+    heightAboveAnimal: going ? helicopter.position.y - going.site.y : Infinity,
+    speed: helicopter.speed,
+    hasWater: tank.hasWater,
+    overThreateningFire:
+      !!threatened &&
+      rescue.threatTo(threatened) < WATER_WORTH_IT &&
+      world.fire.intensityAt(helicopter.position.x, helicopter.position.z) > 0.2,
+  })
+
+  const wantsWinch = copilotSeat.taken ? command.winch : orders.lowerWinch
+  const paying = winch.isStowed && wantsWinch
+  winch.update(wantsWinch, dt)
+  if (paying) radio.say(announcer.ferret('winchReady'))
+
+  const wantsWater = copilotSeat.taken ? command.water : orders.dropWater
+  if (wantsWater && waterCooldown.tryFire()) dropWater(ground)
+  waterCooldown.advance(dt)
+
+  if (!rescue.carrying && going && ferretChatter.tryFire()) {
+    radio.say(announcer.ferret(Math.random() < 0.6 ? 'spotted' : 'idle', going.animal.name))
+  }
+}
+
+/** A load of water on the fire below, if there is any left. */
+function dropWater(ground: number): void {
+  if (!tank.drop()) {
+    radio.say(announcer.ferret('dry'))
+    return
+  }
+  const knocked = world.fire.douse(helicopter.position.x, helicopter.position.z, DROP_RADIUS)
+  world.waterDrop.release(helicopter.position.x, helicopter.position.y - 2, helicopter.position.z, ground, DROP_RADIUS)
+  soundscape?.effects.foliage()
+  hud.flash(knocked > 0 ? 'WATER AWAY — FIRE KNOCKED BACK' : 'WATER AWAY')
+  radio.say(announcer.ferret('watered'))
+}
+
 /** Take fire damage, and repair on the base pad. */
 function burn(ground: number, dt: number): void {
   fireWarning.advance(dt)
@@ -247,8 +365,10 @@ function burn(ground: number, dt: number): void {
     radio.say(announcer.grounded())
   }
 
-  // Sitting on the base pad puts it right.
-  if (airframe.needsRepair && helicopter.isOnGround && world.rescuePad.covers(helicopter.position)) {
+  // Sitting on the base pad puts it right, and fills the tank.
+  const onBase = helicopter.isOnGround && world.rescuePad.covers(helicopter.position)
+  if (onBase) tank.refill(dt)
+  if (airframe.needsRepair && onBase) {
     airframe.repair()
     hud.flash('REPAIRED — BACK IN THE AIR')
     radio.say(announcer.repaired())
@@ -468,6 +588,14 @@ const MARKER_HEIGHT = 22
 const TREE_DAMAGE = 0.08
 /** Matches Rescue: land within this of the animal and it counts. */
 const PICKUP_REACH = 13
+/** Matches Rescue: how far off the animal the hook can be. */
+const WINCH_REACH = 11
+/** Fire this close to an animal is worth spending water on. */
+const WATER_WORTH_IT = 90
+/** Trees are re-checked for catching alight at this interval, not every frame. */
+const burnCheck = new Cooldown(0.4)
+/** And a load of water cannot be dropped faster than this. */
+const waterCooldown = new Cooldown(1.2)
 // Small enough to look like wildlife next to the helicopter rather than a
 // rival vehicle, while still readable from the chase camera.
 const WAITING_SCALE = 0.8

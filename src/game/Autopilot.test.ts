@@ -38,6 +38,15 @@ describe('Autopilot', () => {
     expect(result.landedAt).not.toBeNull()
   })
 
+  it('ferries a wreck home fast, and hands the machine back unboosted', () => {
+    const result = flyHome({ x: 195, y: 64, z: -203 })
+    // The old, unboosted autopilot took over forty seconds to cross the map;
+    // measured at about ten and a half now.
+    expect(result.landedAt!).toBeLessThan(12)
+    // Once it is down it is a normal helicopter again, not a rocket.
+    expect(result.helicopter.boost).toBe(1)
+  })
+
   it('gets there from any direction, however it was pointed when it gave up', () => {
     for (const start of [
       { x: 380, y: 40, z: 380 },
@@ -58,14 +67,18 @@ describe('Autopilot', () => {
     helicopter.position.set(195, 64, -203)
     const autopilot = new Autopilot()
 
-    let lowest = Infinity
+    const ground = 64
+    let lowestClearance = Infinity
     for (let step = 0; step < 60 * 60; step++) {
-      const input = autopilot.update(helicopter, BASE, 64)
-      helicopter.update(input, 1 / 60, 64)
-      // Once it is properly under way, it should be up out of the trees.
-      if (step > 60 * 8 && autopilot.phase === 'cruising') lowest = Math.min(lowest, helicopter.position.y)
+      const input = autopilot.update(helicopter, BASE, ground)
+      helicopter.update(input, 1 / 60, ground)
+      // Whenever it is running for home it must be clear of the treetops,
+      // which reach about 21 above the ground it is over.
+      if (autopilot.phase === 'cruising') {
+        lowestClearance = Math.min(lowestClearance, helicopter.position.y - ground)
+      }
     }
-    expect(lowest).toBeGreaterThan(120)
+    expect(lowestClearance).toBeGreaterThan(25)
   })
 
   it('goes through climbing, cruising and landing in that order', () => {

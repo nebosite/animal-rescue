@@ -3,6 +3,8 @@ export interface FirePatch {
   x: number
   z: number
   radius: number
+  /** Seconds since it caught. Old patches burn hollow and leave a ring. */
+  age: number
 }
 
 /**
@@ -36,10 +38,32 @@ export class Fire {
     return this.live
   }
 
+  /**
+   * A load of water on the front. It knocks the flames back where it lands —
+   * shrinking what it hits and ageing it toward burnt-out — rather than
+   * putting the fire out, which no one bucket ever does. Returns how much fire
+   * it actually took out, so the copilot can say whether it was worth it.
+   */
+  douse(x: number, z: number, radius: number): number {
+    let knocked = 0
+    for (const patch of this.live) {
+      const distance = Math.hypot(x - patch.x, z - patch.z)
+      if (distance > radius + patch.radius) continue
+
+      // Full effect on a direct hit, tailing off toward the edge of the drop.
+      const overlap = 1 - smoothStep(0, radius + patch.radius, distance)
+      const before = patch.radius
+      patch.radius = Math.max(MIN_DOUSED_RADIUS, patch.radius * (1 - DOUSE_SHRINK * overlap))
+      patch.age += DOUSE_AGES * overlap
+      knocked += before - patch.radius
+    }
+    return knocked
+  }
+
   /** Start a fresh patch burning — a spot fire, or a test's blaze. */
-  addPatch(patch: FirePatch): void {
+  addPatch(patch: Omit<FirePatch, 'age'> & { age?: number }): void {
     if (this.live.length >= MAX_PATCHES) return
-    this.live.push({ ...patch })
+    this.live.push({ ...patch, age: patch.age ?? 0 })
   }
 
   /**
@@ -52,6 +76,7 @@ export class Fire {
     this.age += dt
     for (const patch of this.live) {
       patch.radius = Math.min(MAX_RADIUS, patch.radius + GROWTH_PER_SECOND * dt)
+      patch.age += dt
     }
 
     this.sinceSpawn += dt
@@ -70,25 +95,74 @@ export class Fire {
     const dirX = this.spread.x * cos - this.spread.z * sin
     const dirZ = this.spread.x * sin + this.spread.z * cos
     const radius = MIN_NEW_RADIUS + hash(this.spawned, 2) * (MAX_RADIUS * 0.5 - MIN_NEW_RADIUS)
+    // New fire catches at the burning edge of the old, not at its dead centre.
     const reach = parent.radius * 0.85 + radius * 0.6
-    this.live.push({ x: parent.x + dirX * reach, z: parent.z + dirZ * reach, radius })
+    this.live.push({ x: parent.x + dirX * reach, z: parent.z + dirZ * reach, radius, age: 0 })
     this.spawned += 1
   }
 
   /**
-   * How fiercely a point is burning, 0 outside the fire and 1 at the heart of
-   * a patch. Overlapping patches do not stack past 1.
+   * How fiercely a point is burning, 0 outside the fire and 1 in the flames.
+   * Overlapping patches do not stack past 1.
+   *
+   * A young patch burns right through. An old one has eaten its own fuel and
+   * burns as a ring — the flame is a front advancing outward, with smouldering
+   * black ground behind it. That is what a forest fire looks like from the air,
+   * and it is what makes flying *behind* the front survivable.
    */
   intensityAt(x: number, z: number): number {
     let hottest = 0
-    for (const patch of this.patches) {
+    for (const patch of this.live) {
       const distance = Math.hypot(x - patch.x, z - patch.z)
       if (distance >= patch.radius) continue
-      // Hottest in the middle, easing to nothing at the rim.
-      const closeness = 1 - distance / patch.radius
-      hottest = Math.max(hottest, closeness * closeness * (3 - 2 * closeness))
+      hottest = Math.max(hottest, this.flameAt(patch, distance / patch.radius))
     }
     return hottest
+  }
+
+  /** How far out a patch has burned itself hollow, as a fraction of its radius. */
+  hollowOf(patch: FirePatch): number {
+    return MAX_HOLLOW * smoothStep(0, HOLLOW_AFTER, patch.age)
+  }
+
+  /** True where the fire has already passed: black ground, no flame worth the name. */
+  isBurntOut(x: number, z: number): boolean {
+    for (const patch of this.live) {
+      const distance = Math.hypot(x - patch.x, z - patch.z)
+      if (distance < patch.radius * this.hollowOf(patch)) return true
+    }
+    return false
+  }
+
+  /**
+   * The heat at a point within one patch, given how far across it you are.
+   *
+   * A patch is a solid blaze when it catches and a ring of flame once it has
+   * eaten its middle, so this blends between the two shapes with age rather
+   * than switching — switching would put a hard inner edge on a young patch
+   * that has no hollow to have an edge around.
+   */
+  private flameAt(patch: FirePatch, across: number): number {
+    if (across >= 1) return 0
+    const maturity = smoothStep(0, HOLLOW_AFTER, patch.age)
+
+    // Young: hot right through, easing to nothing at the rim.
+    const closeness = 1 - across
+    const solid = closeness * closeness * (3 - 2 * closeness)
+
+    // Old: a band of flame near the rim, embers behind it. The embers are
+    // faded out by the same outer lip as the flame, so the very rim reaches
+    // nothing — otherwise the edge of a patch is a step from ember to air.
+    const hollow = MAX_HOLLOW * maturity
+    let ring = EMBER
+    if (across > hollow) {
+      const t = (across - hollow) / (1 - hollow)
+      const risen = smoothStep(0, BAND_FEATHER, t)
+      const falling = 1 - smoothStep(1 - BAND_FEATHER, 1, t)
+      ring = falling * (EMBER + (1 - EMBER) * risen)
+    }
+
+    return solid * (1 - maturity) + ring * maturity
   }
 
   /**
@@ -103,6 +177,34 @@ export class Fire {
     if (height >= COLUMN_HEIGHT) return 0
     const thinning = 1 - height / COLUMN_HEIGHT
     return intensity * thinning * thinning
+  }
+
+  /**
+   * Rising air over the flames, in units per second squared. A fire makes its
+   * own weather: the column lifts you, hardest a little above the treetops and
+   * dying out at the top, which is why flying over a fire is not simply a
+   * matter of having the altitude.
+   */
+  updraftAt(x: number, z: number, altitudeAboveGround: number): number {
+    const intensity = this.intensityAt(x, z)
+    if (intensity <= 0) return 0
+    const height = Math.max(0, altitudeAboveGround)
+    if (height >= COLUMN_HEIGHT) return 0
+
+    // Builds over the flames, strongest around a third of the way up, easing
+    // off toward the top of the column.
+    const up = height / COLUMN_HEIGHT
+    const profile = Math.sin(Math.min(1, up / UPDRAFT_PEAK) * Math.PI * 0.5) * (1 - up)
+    return intensity * UPDRAFT_FORCE * profile
+  }
+
+  /** How rough the air is here, 0..1, for shaking the machine about. */
+  roughnessAt(x: number, z: number, altitudeAboveGround: number): number {
+    const intensity = this.intensityAt(x, z)
+    if (intensity <= 0) return 0
+    const height = Math.max(0, altitudeAboveGround)
+    if (height >= COLUMN_HEIGHT) return 0
+    return intensity * (1 - height / COLUMN_HEIGHT)
   }
 
   /** Is this point somewhere the helicopter is actively being damaged? */
@@ -152,7 +254,7 @@ export class Fire {
       const centreZ = midZ + acrossZ * t * spread + alongZ * (offset + wander)
       // Thickest in the middle of the front, tapering at its ends.
       const size = radius * (0.6 + 0.4 * Math.cos((t * Math.PI) / 2))
-      patches.push({ x: centreX, z: centreZ, radius: size })
+      patches.push({ x: centreX, z: centreZ, radius: size, age: 0 })
     }
     // The wind blows on toward the far end, so the fire chases the animals.
     return new Fire(patches, { x: alongX, z: alongZ })
@@ -166,8 +268,35 @@ function hash(index: number, channel: number): number {
   return ((h ^ (h >>> 13)) >>> 0) / 4294967295
 }
 
+/** Smooth 0→1 ramp between two edges. */
+function smoothStep(from: number, to: number, value: number): number {
+  const t = Math.min(1, Math.max(0, (value - from) / (to - from)))
+  return t * t * (3 - 2 * t)
+}
+
 /** Below this the helicopter is merely warm, not burning. */
 const SINGEING = 0.02
+/** How hot the burnt-out middle of an old patch stays. */
+const EMBER = 0.16
+/** How much of an old patch's radius has burned hollow, and how long that takes. */
+const MAX_HOLLOW = 0.6
+const HOLLOW_AFTER = 55
+/**
+ * How much of the burning band is feathered at each lip. Wide enough that the
+ * front is a few metres of rising heat rather than a wall you cross in one
+ * frame — which is both truer and fairer to fly near.
+ */
+const BAND_FEATHER = 0.5
+/** Lift over a full blaze, in units per second squared — a real shove, not a launch. */
+const UPDRAFT_FORCE = 30
+/** Where up the column the lift is strongest, as a fraction of its height. */
+const UPDRAFT_PEAK = 0.35
+/** What one load of water does to a patch it lands squarely on. */
+const DOUSE_SHRINK = 0.45
+/** And how much older — nearer burnt out — it leaves it. */
+const DOUSE_AGES = 26
+/** A doused patch never quite vanishes; something always keeps smouldering. */
+const MIN_DOUSED_RADIUS = 9
 /** How high the heat column reaches above the ground. */
 export const COLUMN_HEIGHT = 85
 

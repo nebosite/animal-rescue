@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { Fire } from './Fire'
 import { Terrain } from './Terrain'
 import { TreeCover } from './TreeCover'
 
@@ -35,12 +36,16 @@ describe('TreeCover', () => {
 
   it('reports a strike when flying into a canopy', () => {
     const tree = cover.trees[10]
-    expect(cover.strikeAt(tree.x, tree.top - 1, tree.z)).toBe(tree)
+    // Which tree is struck is not the point — the wood is dense enough that a
+    // neighbour may be nearer. That something is struck is the point.
+    expect(cover.strikeAt(tree.x, tree.top - 1, tree.z)).not.toBeNull()
   })
 
   it('lets you fly over the top of the trees', () => {
     const tree = cover.trees[10]
-    expect(cover.strikeAt(tree.x, tree.top + 0.5, tree.z)).toBeNull()
+    // Clear of the tallest canopy anywhere near, not merely of this one trunk.
+    const tallest = cover.canopyHeightNear(tree.x, tree.z, 40)
+    expect(cover.strikeAt(tree.x, tallest + 0.5, tree.z)).toBeNull()
   })
 
   it('lets you fly past a trunk without clipping it', () => {
@@ -69,6 +74,38 @@ describe('TreeCover', () => {
   it('finds nothing at all inside a clearing', () => {
     const cleared = new TreeCover(terrain, [{ x: 0, z: 0, radius: 80 }])
     expect(cleared.strikeAt(0, cleared.trees[0].ground + 2, 0)).toBeNull()
+  })
+
+  it('sets light to the trees the fire reaches, once each, and leaves the rest alone', () => {
+    const cover = new TreeCover(terrain)
+    const tree = cover.trees.find((t) => Math.abs(t.x) < 300 && Math.abs(t.z) < 300)!
+    const blaze = new Fire([{ x: tree.x, z: tree.z, radius: 45, age: 0 }])
+
+    const caught = cover.scorch(blaze)
+    expect(caught.length).toBeGreaterThan(0)
+    expect(caught).toContain(tree)
+    expect(tree.burnt).toBe(true)
+    // Everything that caught is inside the fire; everything outside is untouched.
+    for (const burnt of caught) expect(Math.hypot(burnt.x - tree.x, burnt.z - tree.z)).toBeLessThanOrEqual(45)
+    for (const other of cover.trees) {
+      if (Math.hypot(other.x - tree.x, other.z - tree.z) > 60) expect(other.burnt).toBe(false)
+    }
+
+    // A second pass over the same fire catches nothing new: burning is once only.
+    expect(cover.scorch(blaze)).toHaveLength(0)
+    expect(cover.burntFraction).toBeGreaterThan(0)
+    expect(cover.burntFraction).toBeLessThan(0.5)
+  })
+
+  it('scorching a spreading fire is cheap enough to do every frame', () => {
+    const cover = new TreeCover(terrain)
+    const fire = Fire.frontBetween({ x: -316, z: 190 }, { x: 195, z: -203 })
+    for (let i = 0; i < 1200; i++) fire.advance(0.1)
+
+    const started = performance.now()
+    for (let i = 0; i < 600; i++) cover.scorch(fire)
+    // Ten seconds of frames against a grown fire.
+    expect(performance.now() - started).toBeLessThan(500)
   })
 
   it('answers strike queries fast enough for every frame', () => {

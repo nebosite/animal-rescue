@@ -28,7 +28,7 @@ export class TerrainMesh {
       const height = terrain.heightAt(x, z)
       position.setY(i, height)
 
-      shade(colour, height, terrain.slopeAt(x, z), terrain.canyonDepthAt(x, z))
+      shade(colour, height, terrain.slopeAt(x, z), terrain.canyonDepthAt(x, z), terrain.rockinessAt(x, z))
       colour.toArray(colors, i * 3)
     }
 
@@ -44,20 +44,27 @@ export class TerrainMesh {
 }
 
 /** Pick a ground colour: canyon rock, grass, or bare stone where it is steep or high. */
-function shade(out: THREE.Color, height: number, slope: number, canyon: number): void {
+function shade(out: THREE.Color, height: number, slope: number, canyon: number, rockiness: number): void {
   const highness = clamp01((height - TREELINE_LOW) / (TREELINE_HIGH - TREELINE_LOW))
-  const bareness = clamp01(Math.max(highness, (slope - 0.3) / 0.5))
+  const bareness = clamp01(Math.max(highness, (slope - 0.25) / 0.45, rockiness * 0.8))
 
   out.copy(GRASS).lerp(MEADOW, clamp01(height / 40))
   out.lerp(ROCK, bareness)
-  out.lerp(CANYON_ROCK, canyon * 0.85)
+  out.lerp(CANYON_ROCK, canyon * 0.9)
+  // Streak the bedrock light and dark so the crags read as strata rather
+  // than one flat orange.
+  out.lerp(STRATA, canyon * clamp01((slope - 0.2) / 0.6) * 0.7)
 }
 
 function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value))
 }
 
-const SEGMENTS = 220
+/**
+ * More polygons than the land strictly needs on the hills, because the canyon
+ * crags do need them: at 220 the bedrock read as smooth folds instead of rock.
+ */
+const SEGMENTS = 340
 
 // Saturated and sunny on purpose: fresh grass, yellow-green meadow, warm
 // stone, and an orange canyon — a place that looks like fun to fly over.
@@ -65,6 +72,7 @@ const GRASS = new THREE.Color(0x5fbd55)
 const MEADOW = new THREE.Color(0x9bd45c)
 const ROCK = new THREE.Color(0xbcb09e)
 const CANYON_ROCK = new THREE.Color(0xd4884f)
+const STRATA = new THREE.Color(0x9a6a4a)
 /** Above this the hills start going bare; by the upper figure they are stone. */
 const TREELINE_LOW = 46
 const TREELINE_HIGH = 78

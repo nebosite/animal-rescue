@@ -81,6 +81,46 @@ describe('Rescue', () => {
     expect(rescue.carrying).toBe(target)
   })
 
+  it('takes an animal up on the winch without landing, and pays for it', () => {
+    const target = rescue.waiting[0]
+    const over = { x: target.site.x + 3, z: target.site.z - 2 }
+    // Hook right down by its feet, hovering steady.
+    expect(rescue.winchUp(over, target.site.y + 1, 2)).toBe('picked-up')
+    expect(rescue.carrying).toBe(target)
+
+    rescue.advance(1)
+    rescue.landedOn(base, onBase, true, 1)
+    expect(rescue.lastDelivery?.bonuses).toContain('winched +3')
+  })
+
+  it('will not winch from too high, too fast, or with nobody below', () => {
+    const target = rescue.waiting[0]
+    const over = { x: target.site.x, z: target.site.z }
+    // Hook still dangling well above the ground.
+    expect(rescue.winchUp(over, target.site.y + 30, 1)).toBeNull()
+    // Hook down, but the helicopter is flying past.
+    expect(rescue.winchUp(over, target.site.y + 1, 25)).toBeNull()
+    // Hook down and steady, but over empty forest.
+    expect(rescue.winchUp({ x: 0, z: 0 }, 0, 1)).toBeNull()
+    expect(rescue.carrying).toBeNull()
+  })
+
+  it('will not winch a second animal while one is aboard', () => {
+    const first = rescue.waiting[0]
+    rescue.winchUp({ x: first.site.x, z: first.site.z }, first.site.y + 1, 1)
+    const second = rescue.waiting[0]
+    expect(rescue.winchUp({ x: second.site.x, z: second.site.z }, second.site.y + 1, 1)).toBeNull()
+    expect(rescue.carrying).toBe(first)
+  })
+
+  it('pays no winch bonus for an animal that was simply landed beside', () => {
+    const target = rescue.waiting[0]
+    rescue.landedOn(null, at(target.site), true)
+    rescue.advance(1)
+    rescue.landedOn(base, onBase, true, 1)
+    expect(rescue.lastDelivery?.bonuses).not.toContain('winched +3')
+  })
+
   it('pays a bonus for a quick trip and a gentle touchdown, and says why', () => {
     const target = rescue.waiting[0]
     rescue.landedOn(null, at(target.site), true)

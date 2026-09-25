@@ -1,4 +1,4 @@
-import { CHIEF, type AnimalProfile, type VoiceProfile } from './AnimalProfile'
+import { CHIEF, FERRET, type AnimalProfile, type VoiceProfile } from './AnimalProfile'
 import type { RoughHandling } from './Handling'
 
 /** One thing said over the radio. */
@@ -75,6 +75,12 @@ export class Announcer {
   /** The Chief handing a mended helicopter back. */
   repaired(): RadioLine {
     return this.chief(this.pick('chief.repaired', CHIEF.lines.repaired))
+  }
+
+  /** The copilot. `about` fills in {name} where a line wants one. */
+  ferret(kind: keyof typeof FERRET.lines, about?: string): RadioLine {
+    const text = this.pick(`ferret.${kind}`, FERRET.lines[kind]).replace('{name}', about ?? 'them')
+    return { speaker: FERRET.name, text, voice: FERRET.voice }
   }
 
   private animal(animal: AnimalProfile, text: string): RadioLine {

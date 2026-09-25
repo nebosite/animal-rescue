@@ -54,6 +54,7 @@ export class Rescue {
   private seed = 0
   private carriedSeconds = 0
   private carriedFrom: Site | null = null
+  private carriedByWinch = false
 
   constructor(
     private readonly rescuePad: LandingPad,
@@ -139,11 +140,35 @@ export class Rescue {
 
     const nearby = this.waiting.find((w) => Math.hypot(w.site.x - position.x, w.site.z - position.z) <= PICKUP_RADIUS)
     if (!nearby) return null
-    this.waiting.splice(this.waiting.indexOf(nearby), 1)
-    this.carrying = nearby
-    this.carriedSeconds = 0
-    this.carriedFrom = nearby.site
+    this.take(nearby, false)
     return 'picked-up'
+  }
+
+  /**
+   * Take an animal aboard on the winch, without ever touching down. Harder
+   * than landing — the helicopter has to hold a low, steady hover while
+   * someone else works the line — so it pays.
+   */
+  winchUp(position: { x: number; z: number }, hookHeight: number, speed: number): RescueEvent | null {
+    if (this.carrying) return null
+    if (speed > WINCH_STEADY) return null
+
+    const below = this.waiting.find((w) =>
+      Math.hypot(w.site.x - position.x, w.site.z - position.z) <= WINCH_REACH &&
+      hookHeight - w.site.y <= HOOK_GRAB &&
+      hookHeight - w.site.y >= -HOOK_SLACK,
+    )
+    if (!below) return null
+    this.take(below, true)
+    return 'picked-up'
+  }
+
+  private take(waiting: Waiting, byWinch: boolean): void {
+    this.waiting.splice(this.waiting.indexOf(waiting), 1)
+    this.carrying = waiting
+    this.carriedSeconds = 0
+    this.carriedFrom = waiting.site
+    this.carriedByWinch = byWinch
   }
 
   /** Rough handling while aboard costs a point of credit — but never the last one. */
@@ -181,12 +206,17 @@ export class Rescue {
       credited += GENTLE_BONUS
       bonuses.push(`gentle +${GENTLE_BONUS}`)
     }
+    if (this.carriedByWinch) {
+      credited += WINCH_BONUS
+      bonuses.push(`winched +${WINCH_BONUS}`)
+    }
 
     this.lastDelivery = { animal: aboard.animal, site: from, credited, bonuses, scolded: aboard.credit < aboard.initialCredit }
     this.score += credited
     this.rescued += 1
     this.carrying = null
     this.carriedFrom = null
+    this.carriedByWinch = false
     this.restock()
     return 'delivered'
   }
@@ -211,3 +241,12 @@ const PAR_SLACK = 10
 const QUICK_BONUS = 2
 const GENTLE_BONUS = 1
 const GENTLE_TOUCHDOWN = 3.5
+/** Winching is the hard way up, and pays like it. */
+const WINCH_BONUS = 3
+/** How far off the animal the hook can be and still catch it. */
+export const WINCH_REACH = 11
+/** And how far above or below its feet. */
+const HOOK_GRAB = 4
+const HOOK_SLACK = 7
+/** The hover has to be this steady for the line to catch. */
+const WINCH_STEADY = 7

@@ -6,10 +6,13 @@ import { AnimalModel } from './AnimalModel'
 import { Terrain } from '../game/Terrain'
 import { TerrainMesh } from './TerrainMesh'
 import { Forest } from './Forest'
+import { Boulders } from './Boulders'
 import { TreeCover } from '../game/TreeCover'
 import { Fire } from '../game/Fire'
 import { FireField } from './FireField'
 import { Beacon } from './Beacon'
+import { WinchLine } from './WinchLine'
+import { WaterDrop } from './WaterDrop'
 import { SiteFinder } from '../game/SiteFinder'
 import { FIELD_LIMIT } from '../game/Helicopter'
 
@@ -38,6 +41,10 @@ export class World {
   readonly fire: Fire
   readonly treeCover: TreeCover
   readonly sites: SiteFinder
+
+  readonly forest: Forest
+  readonly winchLine = new WinchLine()
+  readonly waterDrop = new WaterDrop()
 
   private cameraPlaced = false
   private readonly fireField: FireField
@@ -77,7 +84,9 @@ export class World {
     // A generous clearing round the base: somewhere to descend into that is not
     // a hole in the canopy you have to find first.
     this.treeCover = new TreeCover(this.terrain, [{ x: base.x, z: base.z, radius: PAD_RADIUS * 3.4 }])
-    this.scene.add(new Forest(this.treeCover).group)
+    this.forest = new Forest(this.treeCover)
+    this.scene.add(this.forest.group)
+    this.scene.add(new Boulders(this.terrain).group)
 
     this.baseBeacon = new Beacon(base, RESCUE_RIM_COLOR)
     this.scene.add(this.baseBeacon.group)
@@ -100,6 +109,8 @@ export class World {
     }
 
     this.scene.add(this.animal.group)
+    this.scene.add(this.winchLine.group)
+    this.scene.add(this.waterDrop.group)
     this.scene.add(this.helicopter.group)
   }
 
@@ -108,11 +119,21 @@ export class World {
     for (const [pad, model] of this.padModels) model.setActive(pad === landedOn)
   }
 
-  /** Flicker the flames, roll the smoke, pulse the beacons. */
-  updateEffects(elapsed: number, viewer: THREE.Vector3): void {
+  /** Flicker the flames, roll the smoke, pulse the beacons, fall the water. */
+  updateEffects(elapsed: number, dt: number, viewer: THREE.Vector3): void {
     this.fireField.update(elapsed)
     this.baseBeacon.update(elapsed, viewer)
     for (const flare of this.flares) flare.update(elapsed, viewer)
+    this.waterDrop.update(dt)
+  }
+
+  /** Blacken every tree the fire has just been through. */
+  burnTrees(): number {
+    const caught = this.treeCover.scorch(this.fire)
+    if (caught.length === 0) return 0
+    for (const tree of caught) this.forest.burn(tree.index)
+    this.forest.commitBurns()
+    return caught.length
   }
 
   /**

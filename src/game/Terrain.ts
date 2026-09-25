@@ -62,6 +62,11 @@ export class Terrain {
     return 1 - smoothStep(0, CANYON_HALF_WIDTH, Math.abs(winding - 0.5))
   }
 
+  /** How bare and broken the ground is here, 0 on soft hills and 1 on bedrock. */
+  rockinessAt(x: number, z: number): number {
+    return BASE_ROCK + (1 - BASE_ROCK) * this.canyonDepthAt(x, z)
+  }
+
   /** The hills before any levelling is applied. */
   private rawHeightAt(x: number, z: number): number {
     let height = 0
@@ -70,7 +75,14 @@ export class Terrain {
     height += DETAIL_HEIGHT * noise(x / DETAIL_WAVELENGTH + 3.7, z / DETAIL_WAVELENGTH + 19.4)
 
     // The canyon cuts down through whatever the hills were doing.
-    height -= CANYON_DEPTH * this.canyonDepthAt(x, z)
+    const canyon = this.canyonDepthAt(x, z)
+    height -= CANYON_DEPTH * canyon
+
+    // Bedrock: ridged noise makes creases and crags rather than soft dunes,
+    // and it shows most where the canyon has stripped the hills back to stone.
+    const rock = BASE_ROCK + (1 - BASE_ROCK) * canyon
+    height += CRAG_HEIGHT * rock * ridged(x / CRAG_WAVELENGTH + 5.2, z / CRAG_WAVELENGTH + 31.7)
+    height += SCREE_HEIGHT * rock * ridged(x / SCREE_WAVELENGTH + 17.9, z / SCREE_WAVELENGTH + 2.4)
 
     return height
   }
@@ -87,6 +99,15 @@ function hash(ix: number, iz: number): number {
   let h = Math.imul(ix, 374761393) + Math.imul(iz, 668265263)
   h = Math.imul(h ^ (h >>> 13), 1274126177)
   return ((h ^ (h >>> 16)) >>> 0) / 4294967295
+}
+
+/**
+ * Ridged noise, 0..1, with sharp creases where smooth noise would have soft
+ * humps. Folding the noise about its midpoint is what turns rolling ground
+ * into broken rock.
+ */
+function ridged(x: number, z: number): number {
+  return 1 - Math.abs(noise(x, z) * 2 - 1)
 }
 
 /** Smoothly interpolated value noise, 0..1. */
@@ -118,4 +139,13 @@ const DETAIL_WAVELENGTH = 33
 
 const CANYON_DEPTH = 46
 const CANYON_WAVELENGTH = 420
-const CANYON_HALF_WIDTH = 0.07
+/** Twice the old width: a gorge with room to fly down, not a slot. */
+const CANYON_HALF_WIDTH = 0.14
+
+/** How broken the ground is away from the canyon — hills stay walkable. */
+const BASE_ROCK = 0.12
+/** Big crags and finer scree. Wavelengths stay long enough to keep the ground continuous. */
+const CRAG_HEIGHT = 9
+const CRAG_WAVELENGTH = 27
+const SCREE_HEIGHT = 3.2
+const SCREE_WAVELENGTH = 9.5

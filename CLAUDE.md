@@ -131,6 +131,18 @@ gets you shouted at. It never destroys you — you can always climb back out.
 
 ## Fire and damage
 
+The fire burns as a **front**. A patch is a solid blaze when it catches and a
+ring once it has eaten its middle, blending between the two with age — so the
+flame is an advancing edge with smouldering black behind it, and flying
+*behind* the front is survivable. `TreeCover.scorch` blackens every tree the
+fire reaches (once each, through the same grid the strike lookups use) and
+`Forest.burn` strips its canopy to a charred spike.
+
+Fire makes its own weather: `updraftAt` lifts you over the flames, hardest a
+third of the way up the column, and `roughnessAt` drives the buffeting in
+`Turbulence` — three sines with no common period, so rough air never falls
+into a rhythm. Both are applied after the update that moved the helicopter.
+
 A front of burning patches (`Fire.ts`) lies across the run from the base to
 the high ground and creeps downwind toward it — every patch widens, and every
 fourteen seconds a new one catches at the edge of an old one, up to the thirty
@@ -175,6 +187,25 @@ nothing. Three things fix it, all reading from one source:
   when carrying) that sits on the target when in view and pins to the edge
   pointing the way when it is not; the recommended one is brighter, a
   threatened one is orange.
+
+## The copilot, and player two
+
+Bram — a hyper-intelligent ferret who consults his own AI assistant about
+everything and reports its findings with total confidence — works the two
+controls the pilot cannot reach:
+
+- **The winch** (`Winch`): a line out of the door. Hover low and steady over
+  an animal and it comes up without ever touching down. Harder than landing,
+  so it pays a bonus.
+- **The water** (`WaterTank`): four loads, refilled on the base pad.
+  `Fire.douse` knocks the front back where it lands — it never puts the fire
+  out, so *where* is the whole decision.
+
+`Copilot` decides both when flying himself. **A second player takes the seat**
+the moment they touch it (`CopilotInput`): Space and F on the keyboard, or A
+and B on a second controller — which is the intended way, since the pilot
+needs both hands. Bram then becomes, to his considerable satisfaction, purely
+advisory.
 
 ## The loop so far
 

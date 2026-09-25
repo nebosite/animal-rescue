@@ -39,6 +39,33 @@ describe('Terrain', () => {
     expect(high - low).toBeGreaterThan(60)
   })
 
+  it('is rockiest in the canyon and gentlest on the hills', () => {
+    const terrain = new Terrain(FIELD)
+    const points = sweep(terrain, 10)
+    const inCanyon = points.filter((p) => terrain.canyonDepthAt(p.x, p.z) > 0.8)
+    const onHills = points.filter((p) => terrain.canyonDepthAt(p.x, p.z) < 0.05)
+
+    const meanRock = (list: typeof points) =>
+      list.reduce((sum, p) => sum + terrain.rockinessAt(p.x, p.z), 0) / list.length
+    expect(meanRock(inCanyon)).toBeGreaterThan(meanRock(onHills) * 3)
+
+    // Broken ground means steeper ground: the canyon is harder to put down in.
+    const meanSlope = (list: typeof points) =>
+      list.reduce((sum, p) => sum + terrain.slopeAt(p.x, p.z), 0) / list.length
+    expect(meanSlope(inCanyon)).toBeGreaterThan(meanSlope(onHills))
+  })
+
+  it('has a canyon wide enough to fly down', () => {
+    const terrain = new Terrain(FIELD)
+    // Walk a line across the map and measure the longest unbroken run of canyon.
+    let longest = 0
+    let run = 0
+    for (let x = -FIELD; x <= FIELD; x += 2) {
+      if (terrain.canyonDepthAt(x, 0) > 0.5) { run += 2; longest = Math.max(longest, run) } else run = 0
+    }
+    expect(longest).toBeGreaterThan(60)
+  })
+
   it('has canyon floors well below the surrounding hills', () => {
     const terrain = new Terrain(FIELD)
     const points = sweep(terrain, 10)

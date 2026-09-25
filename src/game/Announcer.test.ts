@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Announcer } from './Announcer'
-import { CHIEF, ROSTER } from './AnimalProfile'
+import { CHIEF, FERRET, ROSTER } from './AnimalProfile'
 
 const duchess = ROSTER.find((animal) => animal.id === 'duchess')!
 
@@ -58,6 +58,22 @@ describe('Announcer', () => {
     const over = announcer.shiftOver(4)
     expect(over.text).toContain('4')
     expect(over.text).not.toContain('{count}')
+  })
+
+  it('gives the ferret a voice of his own, and fills in who he is talking about', () => {
+    const announcer = new Announcer()
+    const welcome = announcer.ferret('welcome')
+    expect(welcome.speaker).toBe('Bram')
+    expect(welcome.voice).toBe(FERRET.voice)
+    expect(FERRET.lines.welcome).toContain(welcome.text)
+
+    const spotted = announcer.ferret('spotted', 'Duchess')
+    expect(spotted.text).toContain('Duchess')
+    expect(spotted.text).not.toContain('{name}')
+  })
+
+  it('has something for the ferret to say at every moment of the job', () => {
+    for (const lines of Object.values(FERRET.lines)) expect(lines.length).toBeGreaterThan(0)
   })
 
   it('gives every animal in the roster something to say at each moment', () => {

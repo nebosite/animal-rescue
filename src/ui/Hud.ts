@@ -30,6 +30,35 @@ export class Hud {
   ) {}
 
   private renderedClock = ''
+  private renderedLoads = -1
+  private renderedSeat: boolean | null = null
+
+  /**
+   * The copilot's two gauges — line out and water left — and who is working
+   * them. Read from live elements rather than stored, so the panel can be
+   * absent (in a test page) without this caring.
+   */
+  setCrew(winchExtended: number, tankFraction: number, loads: number, takenOver: boolean): void {
+    const winchBar = document.getElementById('winch-bar')
+    if (winchBar) winchBar.style.width = `${Math.round(winchExtended * 100)}%`
+
+    const waterBar = document.getElementById('water-bar')
+    if (waterBar) waterBar.style.width = `${Math.round(tankFraction * 100)}%`
+
+    if (loads !== this.renderedLoads) {
+      this.renderedLoads = loads
+      const label = document.getElementById('water-loads')
+      if (label) label.textContent = `${loads}`
+    }
+
+    if (takenOver !== this.renderedSeat) {
+      this.renderedSeat = takenOver
+      const who = document.getElementById('crew-who')
+      if (who) who.textContent = takenOver ? 'PLAYER 2' : 'BRAM'
+      const panel = document.getElementById('crew')
+      if (panel) panel.dataset.seat = takenOver ? 'player' : 'ferret'
+    }
+  }
 
   /** The shift clock, blinking when it is nearly over. */
   setClock(text: string, closing: boolean, clockElement?: HTMLElement): void {

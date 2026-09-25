@@ -2,6 +2,8 @@ import type { Terrain } from './Terrain'
 
 /** One tree: where it stands, how big, and how tall its canopy reaches. */
 export interface Tree {
+  /** Its place in the forest, which is also its place in the drawing. */
+  index: number
   x: number
   z: number
   /** Ground height at its foot. */
@@ -11,6 +13,8 @@ export interface Tree {
   top: number
   /** Horizontal radius that counts as a strike. */
   radius: number
+  /** True once the fire has been through it. Burnt trees never come back. */
+  burnt: boolean
 }
 
 /** Somewhere trees must not grow — a pad, a clearing. */
@@ -51,10 +55,12 @@ export class TreeCover {
 
       const scale = 0.7 + fraction(i, 3) * 0.8
       trees.push({
+        index: trees.length,
         x, z, ground, scale,
         top: ground + TOP_OF_CANOPY * scale,
         // The hull, not the rotor — so threading between trunks is possible.
         radius: CANOPY_RADIUS * scale + HULL_RADIUS,
+        burnt: false,
       })
     }
 
@@ -82,6 +88,41 @@ export class TreeCover {
       }
     }
     return null
+  }
+
+  /**
+   * Set light to every tree the fire has reached, and report which ones newly
+   * caught so the drawing can blacken them.
+   *
+   * Only the ground near a burning patch is examined, through the same grid
+   * the strike lookups use — sweeping several thousand trees every frame to
+   * ask a question whose answer almost never changes would be absurd.
+   */
+  scorch(fire: { patches: ReadonlyArray<{ x: number; z: number; radius: number }>; intensityAt(x: number, z: number): number }): Tree[] {
+    const caught: Tree[] = []
+    for (const patch of fire.patches) {
+      const reach = Math.ceil(patch.radius / CELL)
+      for (let ox = -reach; ox <= reach; ox++) {
+        for (let oz = -reach; oz <= reach; oz++) {
+          const bucket = this.cells.get(cellKey(patch.x + ox * CELL, patch.z + oz * CELL))
+          if (!bucket) continue
+          for (const tree of bucket) {
+            if (tree.burnt) continue
+            if (Math.hypot(tree.x - patch.x, tree.z - patch.z) > patch.radius) continue
+            if (fire.intensityAt(tree.x, tree.z) < CATCHES_AT) continue
+            tree.burnt = true
+            caught.push(tree)
+          }
+        }
+      }
+    }
+    return caught
+  }
+
+  /** How much of the forest has burned, 0..1 — the scale of the thing. */
+  get burntFraction(): number {
+    if (this.trees.length === 0) return 0
+    return this.trees.reduce((count, tree) => count + (tree.burnt ? 1 : 0), 0) / this.trees.length
   }
 
   /** Distance to the nearest trunk within `within`, or Infinity if there is none. */
@@ -134,6 +175,8 @@ const MARGIN = 12
 const TREELINE = 52
 const MAX_SLOPE = 0.55
 const CELL = 24
+/** Heat at a trunk that sets it alight. Embers behind the front still count. */
+const CATCHES_AT = 0.12
 
 /** Matches the drawn tree: trunk plus cone, measured from the ground. */
 export const TRUNK_HEIGHT = 6

@@ -83,6 +83,20 @@
       #integrity[data-state="hurt"] #integrity-bar { background: var(--amber); }
       #integrity[data-state="critical"] #integrity-bar { background: #e8643c; }
       #integrity[data-state="critical"] { color: var(--orange); }
+      #crew {
+        width: calc(148px * var(--ui)); background: var(--panel);
+        padding: calc(3px * var(--ui)) calc(4px * var(--ui)) calc(4px * var(--ui)); border-radius: calc(3px * var(--ui));
+        font-size: calc(11px * var(--ui)); font-weight: 600; line-height: 1; letter-spacing: 0.08em; color: var(--ink-dim);
+      }
+      #crew-who { color: var(--amber); }
+      #crew[data-seat="player"] #crew-who { color: var(--green); }
+      .gauge-row { display: flex; align-items: center; gap: calc(3px * var(--ui)); margin-top: calc(2.5px * var(--ui)); }
+      .gauge-label { width: calc(34px * var(--ui)); font-size: calc(9px * var(--ui)); }
+      .gauge-track { flex: 1; height: calc(5px * var(--ui)); border-radius: calc(3px * var(--ui)); background: rgba(143, 162, 196, 0.25); overflow: hidden; }
+      .gauge-track > div { height: 100%; width: 0%; transition: width 120ms linear; }
+      #winch-bar { background: #d8c88a; }
+      #water-bar { background: #7fc9f2; }
+      .gauge-count { width: calc(10px * var(--ui)); text-align: right; color: var(--ink); }
 
       /* ---- bottom: messages ---- */
       #status {
@@ -164,6 +178,10 @@
       </div>
       <div id="course"><span id="compass">▲</span><span id="range">0 m</span></div>
       <div id="integrity" data-state="fine">AIRFRAME<div id="integrity-track"><div id="integrity-bar"></div></div></div>
+      <div id="crew" data-seat="ferret">COPILOT <span id="crew-who">BRAM</span>
+        <div class="gauge-row"><span class="gauge-label">WINCH</span><span class="gauge-track"><div id="winch-bar"></div></span><span class="gauge-count" aria-hidden="true">&nbsp;</span></div>
+        <div class="gauge-row"><span class="gauge-label">WATER</span><span class="gauge-track"><div id="water-bar"></div></span><span id="water-loads" class="gauge-count">4</span></div>
+      </div>
     </div>
 
     <div class="target-marker" id="target-marker-0" data-where="hidden">
@@ -181,10 +199,12 @@
 
     <div id="controls-hint" data-device="keyboard">
       <span class="for-keyboard">
-        <b>W S</b> climb / descend &nbsp;·&nbsp; <b>A D</b> turn &nbsp;·&nbsp; <b>↑ ↓</b> nose &nbsp;·&nbsp; <b>← →</b> slide
+        <b>W S</b> climb / descend &nbsp;·&nbsp; <b>A D</b> turn &nbsp;·&nbsp; <b>↑ ↓</b> nose &nbsp;·&nbsp; <b>← →</b> slide<br />
+        <span style="opacity:.75">Player 2 &nbsp;<b>Space</b> winch &nbsp;·&nbsp; <b>F</b> water &nbsp;·&nbsp; or a 2nd controller</span>
       </span>
       <span class="for-gamepad">
-        <b>Left stick</b> climb / turn &nbsp;·&nbsp; <b>Right stick</b> nose / slide &nbsp;·&nbsp; <b>RT LT</b> climb / descend
+        <b>Left stick</b> climb / turn &nbsp;·&nbsp; <b>Right stick</b> nose / slide &nbsp;·&nbsp; <b>RT LT</b> climb / descend<br />
+        <span style="opacity:.75">Player 2 (2nd pad) &nbsp;<b>A</b> winch &nbsp;·&nbsp; <b>B</b> water</span>
       </span>
     </div>
 

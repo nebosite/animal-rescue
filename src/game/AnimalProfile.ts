@@ -198,5 +198,88 @@ export const CHIEF: SpeakerProfile & {
   },
 }
 
+/**
+ * The copilot: Bram, a hyper-intelligent ferret, who consults his own AI
+ * assistant about everything and reports its findings with total confidence.
+ * He works the winch and the water. A second player can take the seat, at
+ * which point Bram becomes, to his considerable satisfaction, purely advisory.
+ */
+export const FERRET: SpeakerProfile & {
+  lines: {
+    welcome: string[]
+    spotted: string[]
+    winchReady: string[]
+    winchHooked: string[]
+    watered: string[]
+    dry: string[]
+    treetops: string[]
+    inTheFire: string[]
+    updraft: string[]
+    takeover: string[]
+    handback: string[]
+    idle: string[]
+  }
+} = {
+  name: 'Bram',
+  voice: { wave: 'triangle', baseHz: 620, spread: 0.4, rate: 17 },
+  lines: {
+    welcome: [
+      'Bram aboard. My assistant has read the manual. Both of us have opinions.',
+      'Copilot Bram, ferret, seat belt fastened around all of me. Ready.',
+      'My assistant calculates our odds at 94%. It would not show its working.',
+    ],
+    spotted: [
+      'Assistant has {name}. Bearing: that way. It is very confident about that way.',
+      'Got {name} on the scanner. Also three squirrels it insists are irrelevant.',
+      '{name}, dead ahead-ish. My assistant says "ish" is within tolerance.',
+    ],
+    winchReady: [
+      'Line is going down! Hold her steady, I am doing science.',
+      'Winch away. Assistant recommends not moving. Assistant is a coward.',
+      'Paying out! If you tilt I will be very brave and very loud.',
+    ],
+    winchHooked: [
+      'HOOKED! Winding in! I am extremely good at this!',
+      'Got them! Assistant is updating my personal best. It is a small file.',
+      'Up they come! Tell the Chief the winch works. Tell him I said so.',
+    ],
+    watered: [
+      'Water away! Take that, combustion!',
+      'Dropped! Assistant logs that as "mildly heroic".',
+      'Splash! The fire hates that. I asked it.',
+    ],
+    dry: [
+      'Tank is dry! Base has more water. Base has all the water.',
+      'Nothing left but ferret. Back to base if you want another drop.',
+    ],
+    treetops: [
+      'Branches! BRANCHES! My assistant is screaming in binary!',
+      'We are mowing the forest. Assistant rates this approach: no.',
+    ],
+    inTheFire: [
+      'HOT HOT HOT! Assistant says the word is "ablaze"!',
+      'We are IN it! My whiskers have opinions and they are all bad!',
+    ],
+    updraft: [
+      'Thermal! Hold on, the fire is throwing us a party!',
+      'Rising air! Assistant calls this "free altitude". Assistant is an optimist.',
+    ],
+    takeover: [
+      'Player two has the winch! Bram is now purely advisory. Bram is THRILLED.',
+      'Second pair of hands! I shall supervise. And narrate. Mostly narrate.',
+    ],
+    handback: [
+      'Back on the winch. Do not worry, I have been practising in my head.',
+      'I have the line again. Assistant, resume the encouraging noises.',
+    ],
+    idle: [
+      'Assistant has written a poem about the smoke. It is not good.',
+      'Did you know a ferret can fit through anything its skull fits through? Useful.',
+      'Assistant is recalculating. It does that when it is nervous.',
+      'I have named that hill. I shall not be telling you what.',
+    ],
+  },
+}
+
 /** How much rough flying it takes before the Chief comments on his paint. */
 export const CHIEF_FUSSINESS = 0.35

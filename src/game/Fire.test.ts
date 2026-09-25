@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { COLUMN_HEIGHT, Fire, MAX_PATCHES } from './Fire'
 
-const one = new Fire([{ x: 0, z: 0, radius: 40 }])
+const one = new Fire([{ x: 0, z: 0, radius: 40, age: 0 }])
+/**
+ * The same patch, long enough alight to have burned its middle out. Built with
+ * the age set rather than by advancing, because advancing also spreads the
+ * fire and a fresh patch growing over the origin would mask what is asked.
+ */
+const aged = () => new Fire([{ x: 0, z: 0, radius: 40, age: 200 }])
 
 describe('Fire', () => {
   it('burns hottest at the heart and not at all outside the rim', () => {
@@ -22,11 +28,49 @@ describe('Fire', () => {
 
   it('never stacks past full intensity where patches overlap', () => {
     const overlapping = new Fire([
-      { x: 0, z: 0, radius: 40 },
-      { x: 10, z: 0, radius: 40 },
-      { x: -10, z: 0, radius: 40 },
+      { x: 0, z: 0, radius: 40, age: 0 },
+      { x: 10, z: 0, radius: 40, age: 0 },
+      { x: -10, z: 0, radius: 40, age: 0 },
     ])
     for (let x = -50; x <= 50; x += 2) expect(overlapping.intensityAt(x, 0)).toBeLessThanOrEqual(1)
+  })
+
+  it('burns hollow with age, so the flame becomes a front with black behind it', () => {
+    const old = aged()
+    const patch = old.patches[0]
+    const hollow = old.hollowOf(patch)
+    expect(hollow).toBeGreaterThan(0.5)
+
+    // The middle is spent; the band out near the rim is where the fire is.
+    const middle = old.intensityAt(0, 0)
+    const front = old.intensityAt(patch.radius * (hollow + (1 - hollow) / 2), 0)
+    expect(front).toBeGreaterThan(middle * 3)
+    expect(middle).toBeGreaterThan(0)
+    expect(middle).toBeLessThan(0.25)
+  })
+
+  it('a young patch burns right through, before it has eaten its fuel', () => {
+    expect(one.hollowOf(one.patches[0])).toBe(0)
+    expect(one.intensityAt(0, 0)).toBeCloseTo(1, 1)
+  })
+
+  it('knows where it has already passed, and that is nowhere on a fresh fire', () => {
+    expect(one.isBurntOut(0, 0)).toBe(false)
+    const old = aged()
+    expect(old.isBurntOut(0, 0)).toBe(true)
+    expect(old.isBurntOut(old.patches[0].radius * 0.95, 0)).toBe(false)
+    expect(old.isBurntOut(500, 500)).toBe(false)
+  })
+
+  it('eases off rather than stopping at a hard edge, even once it is a ring', () => {
+    const old = aged()
+    let biggestJump = 0
+    for (let d = 0; d < 45; d += 0.5) {
+      biggestJump = Math.max(biggestJump, Math.abs(old.intensityAt(d + 0.5, 0) - old.intensityAt(d, 0)))
+    }
+    // The front is deliberately sharper than the middle of a young blaze: it
+    // is an edge. It still must not be a step.
+    expect(biggestJump).toBeLessThan(0.12)
   })
 
   it('thins with height, so climbing over the fire is possible', () => {
@@ -35,6 +79,28 @@ describe('Fire', () => {
     expect(low).toBeGreaterThan(mid)
     expect(mid).toBeGreaterThan(0)
     expect(one.heatAt(0, 0, COLUMN_HEIGHT + 1)).toBe(0)
+  })
+
+  it('lifts you over the flames, hardest low down and gone above the column', () => {
+    expect(one.updraftAt(300, 300, 10)).toBe(0)
+    const low = one.updraftAt(0, 0, 8)
+    const middling = one.updraftAt(0, 0, 30)
+    const high = one.updraftAt(0, 0, 80)
+    expect(low).toBeGreaterThan(0)
+    expect(middling).toBeGreaterThan(0)
+    expect(high).toBeLessThan(middling)
+    expect(one.updraftAt(0, 0, COLUMN_HEIGHT + 1)).toBe(0)
+    // Strong enough to be felt, not strong enough to throw the helicopter.
+    expect(Math.max(low, middling)).toBeLessThan(35)
+  })
+
+  it('is roughest right in the flames and smooth well away from them', () => {
+    expect(one.roughnessAt(0, 0, 4)).toBeGreaterThan(0.8)
+    expect(one.roughnessAt(0, 0, COLUMN_HEIGHT + 1)).toBe(0)
+    expect(one.roughnessAt(300, 300, 4)).toBe(0)
+    // Behind the front, over burnt ground, the air has calmed down.
+    const old = aged()
+    expect(old.roughnessAt(0, 0, 4)).toBeLessThan(old.roughnessAt(old.patches[0].radius * 0.8, 0, 4))
   })
 
   it('is only dangerous where there is actually fire below', () => {
@@ -46,6 +112,39 @@ describe('Fire', () => {
   it('measures the gap to the nearest flame, zero once inside', () => {
     expect(one.distanceToNearest(140, 0)).toBeCloseTo(100)
     expect(one.distanceToNearest(10, 0)).toBe(0)
+  })
+})
+
+describe('Fire.douse', () => {
+  const blaze = () => new Fire([{ x: 0, z: 0, radius: 50, age: 0 }])
+
+  it('knocks the flames back where the water lands', () => {
+    const fire = blaze()
+    const before = fire.intensityAt(0, 0)
+    const knocked = fire.douse(0, 0, 46)
+    expect(knocked).toBeGreaterThan(0)
+    expect(fire.patches[0].radius).toBeLessThan(50)
+    expect(fire.intensityAt(0, 0)).toBeLessThan(before)
+  })
+
+  it('does nothing to fire the drop did not reach', () => {
+    const fire = blaze()
+    expect(fire.douse(400, 400, 46)).toBe(0)
+    expect(fire.patches[0].radius).toBe(50)
+  })
+
+  it('never puts the fire out entirely, however much is dropped', () => {
+    const fire = blaze()
+    for (let i = 0; i < 40; i++) fire.douse(0, 0, 46)
+    expect(fire.patches[0].radius).toBeGreaterThan(0)
+    expect(fire.patches).toHaveLength(1)
+  })
+
+  it('buys room: the gap to the nearest flame grows', () => {
+    const fire = blaze()
+    const before = fire.distanceToNearest(80, 0)
+    fire.douse(0, 0, 46)
+    expect(fire.distanceToNearest(80, 0)).toBeGreaterThan(before)
   })
 })
 
