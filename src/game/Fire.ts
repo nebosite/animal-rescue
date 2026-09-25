@@ -180,31 +180,52 @@ export class Fire {
   }
 
   /**
-   * Rising air over the flames, in units per second squared. A fire makes its
-   * own weather: the column lifts you, hardest a little above the treetops and
-   * dying out at the top, which is why flying over a fire is not simply a
-   * matter of having the altitude.
+   * How much fire-heated air stands over a point, 0..1.
+   *
+   * Deliberately *not* the flame intensity: the whole burn is a chimney, not
+   * just the line of flame. Ground the front has already crossed is black,
+   * baking and pouring heat upward, and the air keeps rising a little past
+   * the rim. Driving the weather off flame intensity made the middle of every
+   * mature patch — most of the fire's area — almost perfectly calm, which is
+   * why none of this could be felt.
+   */
+  private chimneyAt(x: number, z: number): number {
+    let most = 0
+    for (const patch of this.live) {
+      const distance = Math.hypot(x - patch.x, z - patch.z)
+      const outer = patch.radius + THERMAL_SPILL
+      if (distance >= outer) continue
+      most = Math.max(most, 1 - smoothStep(patch.radius * THERMAL_CORE, outer, distance))
+      if (most >= 1) return 1
+    }
+    return most
+  }
+
+  /**
+   * Rising air over the fire, in units per second squared. Strongest a third
+   * of the way up the column and gone at the top, so flying over a fire is
+   * never simply a matter of having the altitude.
    */
   updraftAt(x: number, z: number, altitudeAboveGround: number): number {
-    const intensity = this.intensityAt(x, z)
-    if (intensity <= 0) return 0
+    const chimney = this.chimneyAt(x, z)
+    if (chimney <= 0) return 0
     const height = Math.max(0, altitudeAboveGround)
     if (height >= COLUMN_HEIGHT) return 0
 
-    // Builds over the flames, strongest around a third of the way up, easing
-    // off toward the top of the column.
     const up = height / COLUMN_HEIGHT
     const profile = Math.sin(Math.min(1, up / UPDRAFT_PEAK) * Math.PI * 0.5) * (1 - up)
-    return intensity * UPDRAFT_FORCE * profile
+    return chimney * UPDRAFT_FORCE * profile
   }
 
   /** How rough the air is here, 0..1, for shaking the machine about. */
   roughnessAt(x: number, z: number, altitudeAboveGround: number): number {
-    const intensity = this.intensityAt(x, z)
-    if (intensity <= 0) return 0
+    const chimney = this.chimneyAt(x, z)
+    if (chimney <= 0) return 0
     const height = Math.max(0, altitudeAboveGround)
     if (height >= COLUMN_HEIGHT) return 0
-    return intensity * (1 - height / COLUMN_HEIGHT)
+    // Rough right to the top of the column, unlike the lift, which peters out:
+    // it is the last place you want the machine to go quiet and smooth.
+    return chimney * (1 - 0.55 * (height / COLUMN_HEIGHT))
   }
 
   /** Is this point somewhere the helicopter is actively being damaged? */
@@ -278,19 +299,32 @@ function smoothStep(from: number, to: number, value: number): number {
 const SINGEING = 0.02
 /** How hot the burnt-out middle of an old patch stays. */
 const EMBER = 0.16
-/** How much of an old patch's radius has burned hollow, and how long that takes. */
-const MAX_HOLLOW = 0.6
-const HOLLOW_AFTER = 55
+/**
+ * How much of an old patch's radius has burned hollow, and how long that
+ * takes. Well inside a five-minute shift, so the ring and the black ground
+ * behind it are something the player actually sees rather than a property of
+ * a fire left burning for an hour.
+ */
+const MAX_HOLLOW = 0.68
+const HOLLOW_AFTER = 34
 /**
  * How much of the burning band is feathered at each lip. Wide enough that the
  * front is a few metres of rising heat rather than a wall you cross in one
  * frame — which is both truer and fairer to fly near.
  */
 const BAND_FEATHER = 0.5
-/** Lift over a full blaze, in units per second squared — a real shove, not a launch. */
-const UPDRAFT_FORCE = 30
+/**
+ * Lift over the burn, in units per second squared. Stronger than full
+ * collective at its peak, on purpose: the fire should be able to take the
+ * helicopter somewhere the pilot did not choose.
+ */
+const UPDRAFT_FORCE = 60
 /** Where up the column the lift is strongest, as a fraction of its height. */
 const UPDRAFT_PEAK = 0.35
+/** The chimney is at full strength inside this much of a patch's radius... */
+const THERMAL_CORE = 0.55
+/** ...and spills this far past its rim before it dies away. */
+const THERMAL_SPILL = 26
 /** What one load of water does to a patch it lands squarely on. */
 const DOUSE_SHRINK = 0.45
 /** And how much older — nearer burnt out — it leaves it. */

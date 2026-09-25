@@ -81,7 +81,7 @@ describe('Fire', () => {
     expect(one.heatAt(0, 0, COLUMN_HEIGHT + 1)).toBe(0)
   })
 
-  it('lifts you over the flames, hardest low down and gone above the column', () => {
+  it('lifts you over the fire, hardest low down and gone above the column', () => {
     expect(one.updraftAt(300, 300, 10)).toBe(0)
     const low = one.updraftAt(0, 0, 8)
     const middling = one.updraftAt(0, 0, 30)
@@ -90,17 +90,32 @@ describe('Fire', () => {
     expect(middling).toBeGreaterThan(0)
     expect(high).toBeLessThan(middling)
     expect(one.updraftAt(0, 0, COLUMN_HEIGHT + 1)).toBe(0)
-    // Strong enough to be felt, not strong enough to throw the helicopter.
-    expect(Math.max(low, middling)).toBeLessThan(35)
+    // Strong enough to beat full collective, which is what makes it a hazard
+    // rather than a texture, and still a shove rather than a launch.
+    // Comparable to full collective (about 39), so over the hottest ground
+    // the pilot can barely hold altitude.
+    expect(Math.max(low, middling)).toBeGreaterThan(35)
+    expect(Math.max(low, middling)).toBeLessThan(70)
   })
 
-  it('is roughest right in the flames and smooth well away from them', () => {
+  it('lifts and shakes over the whole burn, not only along the flame front', () => {
+    // The middle of a mature patch is black, spent ground — and still a
+    // chimney. This is the thing that made the weather impossible to feel.
+    const old = aged()
+    const patch = old.patches[0]
+    expect(old.intensityAt(0, 0)).toBeLessThan(0.3)
+    expect(old.updraftAt(0, 0, 20)).toBeGreaterThan(35)
+    expect(old.roughnessAt(0, 0, 20)).toBeGreaterThan(0.7)
+    // And it spills a little past the rim, so the ride roughens on approach.
+    expect(old.roughnessAt(patch.radius + 12, 0, 20)).toBeGreaterThan(0)
+    expect(old.roughnessAt(patch.radius + 90, 0, 20)).toBe(0)
+  })
+
+  it('stays rough right up the column, where calm air would be a relief', () => {
     expect(one.roughnessAt(0, 0, 4)).toBeGreaterThan(0.8)
+    expect(one.roughnessAt(0, 0, COLUMN_HEIGHT - 5)).toBeGreaterThan(0.35)
     expect(one.roughnessAt(0, 0, COLUMN_HEIGHT + 1)).toBe(0)
     expect(one.roughnessAt(300, 300, 4)).toBe(0)
-    // Behind the front, over burnt ground, the air has calmed down.
-    const old = aged()
-    expect(old.roughnessAt(0, 0, 4)).toBeLessThan(old.roughnessAt(old.patches[0].radius * 0.8, 0, 4))
   })
 
   it('is only dangerous where there is actually fire below', () => {

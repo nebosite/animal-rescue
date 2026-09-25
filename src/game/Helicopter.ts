@@ -23,6 +23,13 @@ export class Helicopter {
   /** Current lean, radians. Positive pitch is nose down; positive roll is right side down. */
   pitch = 0
   roll = 0
+  /**
+   * Rocking from rough air, radians, on top of the flown attitude. Kept apart
+   * from `pitch`/`roll` so the lean easing cannot quietly undo it — the drawing
+   * adds the two together.
+   */
+  shakePitch = 0
+  shakeRoll = 0
 
   /** True on the one update in which the skids touched down. */
   justLanded = false
@@ -89,6 +96,10 @@ export class Helicopter {
     this.justBumped = false
     this.justStruck = false
     const onGround = this.isOnGround
+
+    // Rough air has to keep telling the machine to rock; left alone it settles.
+    this.shakePitch = approach(this.shakePitch, 0, SHAKE_SETTLES, dt)
+    this.shakeRoll = approach(this.shakeRoll, 0, SHAKE_SETTLES, dt)
 
     this.turn(input.yaw, dt)
     this.lean(input, onGround, dt)
@@ -182,15 +193,20 @@ export class Helicopter {
    * Air that is doing something of its own: a thermal lifting the machine and
    * buffeting shoving it about. Called after the update that moved it, so the
    * rising air is felt on top of whatever the pilot asked for.
+   *
+   * The shove goes into the velocity, where it is felt; the rocking goes into
+   * separate shake angles, where it is *seen*. Adding it to the flown attitude
+   * instead was the mistake first time round — the lean easing pulled it
+   * straight back out again, so rough air moved the helicopter without ever
+   * looking like it.
    */
   applyAirCurrent(lift: number, buffetX: number, buffetZ: number, dt: number): void {
     this.velocity.y += lift * dt
     this.velocity.x += buffetX * dt
     this.velocity.z += buffetZ * dt
-    // Rough air unsettles the attitude too, which is most of what sells it.
-    const shake = Math.hypot(buffetX, buffetZ) * BUFFET_TILT * dt
-    this.pitch += buffetZ * shake * 0.02
-    this.roll += buffetX * shake * 0.02
+
+    this.shakeRoll = clamp(buffetX * SHAKE_PER_FORCE, -MAX_SHAKE, MAX_SHAKE)
+    this.shakePitch = clamp(buffetZ * SHAKE_PER_FORCE, -MAX_SHAKE, MAX_SHAKE)
   }
 
   private integrate(dt: number): void {
@@ -226,6 +242,10 @@ function approach(value: number, target: number, rate: number, dt: number): numb
   return target + (value - target) * Math.exp(-rate * dt)
 }
 
+function clamp(value: number, low: number, high: number): number {
+  return Math.min(high, Math.max(low, value))
+}
+
 const START_ALTITUDE = 8
 /** How far the skids hold the hull above whatever is underneath. */
 const SKID_HEIGHT = 2
@@ -259,5 +279,9 @@ const VERTICAL_TERMINAL_SPEED = COLLECTIVE_ACCEL / VERTICAL_DRAG
 const GROUND_FRICTION = 10
 /** How hard foliage drags: heavy enough to feel, light enough to fly out of. */
 const STRIKE_DRAG = 5.5
-/** How much buffeting rocks the attitude as well as shoving the machine. */
-const BUFFET_TILT = 0.6
+/** Radians of rocking per unit of buffeting force, and the limit of it. */
+const SHAKE_PER_FORCE = 0.011
+/** About twenty-five degrees: unmistakable, still short of a barrel roll. */
+const MAX_SHAKE = 0.44
+/** How fast the rocking dies away once the air smooths out. */
+const SHAKE_SETTLES = 3.5

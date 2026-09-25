@@ -2,7 +2,79 @@ import { describe, expect, it } from 'vitest'
 import * as THREE from 'three'
 import { World } from './World'
 
+/**
+ * Read the drawn colour of the land at a point, by *searching* the mesh for the
+ * nearest vertex rather than computing its index. The search is the point: if
+ * `scorch` ever indexes the grid wrongly it will blacken somewhere other than
+ * where the fire is, and recomputing the same index here would hide that.
+ */
+function groundColourAt(world: World, x: number, z: number): THREE.Color {
+  const position = world.terrainMesh.mesh.geometry.attributes.position
+  const colour = world.terrainMesh.mesh.geometry.attributes.color
+  let nearest = 0
+  let best = Infinity
+  for (let i = 0; i < position.count; i++) {
+    const away = (position.getX(i) - x) ** 2 + (position.getZ(i) - z) ** 2
+    if (away < best) { best = away; nearest = i }
+  }
+  return new THREE.Color(colour.getX(nearest), colour.getY(nearest), colour.getZ(nearest))
+}
+
+/** Rough perceived brightness, enough to tell scorched ground from grass. */
+function brightness(colour: THREE.Color): number {
+  return colour.r + colour.g + colour.b
+}
+
 describe('World', () => {
+  it('blackens the ground the fire has burned across, not just the trees', () => {
+    const world = new World()
+    const patch = world.fire.patches[0]
+    const before = brightness(groundColourAt(world, patch.x, patch.z))
+
+    // Let the front burn itself hollow, the way it does over a real shift.
+    for (let i = 0; i < 90 * 10; i++) world.fire.advance(1 / 10)
+    world.burnTrees(0.4)
+
+    const after = brightness(groundColourAt(world, patch.x, patch.z))
+    expect(after).toBeLessThan(before * 0.5)
+    // `needsUpdate` is write-only in Three; the version counter is how you see it was set.
+    const colour = world.terrainMesh.mesh.geometry.attributes.color as THREE.BufferAttribute
+    expect(colour.version).toBeGreaterThan(0)
+  })
+
+  it('leaves the ground the fire never reached alone', () => {
+    const world = new World()
+    const pad = world.rescuePad
+    const before = brightness(groundColourAt(world, pad.position.x, pad.position.z))
+
+    for (let i = 0; i < 90 * 10; i++) world.fire.advance(1 / 10)
+    world.burnTrees(0.4)
+
+    expect(brightness(groundColourAt(world, pad.position.x, pad.position.z))).toBeCloseTo(before, 5)
+  })
+
+  it('blackens the ground as the burn creeps outward, not only when it appears at full size', () => {
+    const world = new World()
+    const patch = world.fire.patches[0]
+    const before = brightness(groundColourAt(world, patch.x, patch.z))
+
+    // The way the game does it: a little more fire, another sweep, over and
+    // over. The first version of this only darkened each vertex once, on the
+    // tick it was first covered — which is at the rim, where the falloff is
+    // nil — so a creeping burn left the ground almost untouched.
+    for (let i = 0; i < 900; i++) {
+      world.fire.advance(1 / 10)
+      if (i % 4 === 0) world.burnTrees(0.4)
+    }
+
+    expect(brightness(groundColourAt(world, patch.x, patch.z))).toBeLessThan(before * 0.2)
+  })
+
+  it('does nothing on a fire too young to have burned anything out', () => {
+    const world = new World()
+    expect(world.terrainMesh.scorch(0, 0, 0)).toBe(false)
+  })
+
   it('puts the helicopter in the scene', () => {
     const world = new World()
     expect(world.scene.children).toContain(world.helicopter.group)

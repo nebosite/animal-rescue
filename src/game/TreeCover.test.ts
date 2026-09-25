@@ -84,11 +84,11 @@ describe('TreeCover', () => {
     const caught = cover.scorch(blaze)
     expect(caught.length).toBeGreaterThan(0)
     expect(caught).toContain(tree)
-    expect(tree.burnt).toBe(true)
+    expect(tree.state).toBe('burning')
     // Everything that caught is inside the fire; everything outside is untouched.
     for (const burnt of caught) expect(Math.hypot(burnt.x - tree.x, burnt.z - tree.z)).toBeLessThanOrEqual(45)
     for (const other of cover.trees) {
-      if (Math.hypot(other.x - tree.x, other.z - tree.z) > 60) expect(other.burnt).toBe(false)
+      if (Math.hypot(other.x - tree.x, other.z - tree.z) > 60) expect(other.state).toBe('green')
     }
 
     // A second pass over the same fire catches nothing new: burning is once only.
@@ -124,5 +124,78 @@ describe('TreeCover', () => {
     // Nothing to report where nothing grows.
     const cleared = new TreeCover(terrain, [{ x: 0, z: 0, radius: 80 }])
     expect(cleared.canopyHeightNear(0, 0)).toBe(-Infinity)
+  })
+
+  it('burns a tree down over time rather than switching it to black', () => {
+    const cover = new TreeCover(new Terrain(420))
+    const tree = cover.trees[0]
+    const blaze = {
+      patches: [{ x: tree.x, z: tree.z, radius: 40 }],
+      intensityAt: () => 1,
+    }
+
+    expect(cover.scorch(blaze).length).toBeGreaterThan(0)
+    expect(tree.state).toBe('burning')
+    expect(TreeCover.burnProgress(tree)).toBe(0)
+
+    // Halfway through its burn it is still alight, not yet a snag — that middle
+    // state is most of what you see at the front.
+    for (let i = 0; i < tree.burnsFor / 2 / 0.4; i++) cover.advance(0.4)
+    expect(tree.state).toBe('burning')
+    expect(TreeCover.burnProgress(tree)).toBeGreaterThan(0.3)
+    expect(TreeCover.burnProgress(tree)).toBeLessThan(0.7)
+
+    for (let i = 0; i < 200; i++) cover.advance(0.4)
+    expect(tree.state).toBe('burnt')
+    expect(TreeCover.burnProgress(tree)).toBe(1)
+  })
+
+  it('does not burn a whole stand out on the same tick', () => {
+    const cover = new TreeCover(new Terrain(420))
+    const blaze = { patches: [{ x: 0, z: 0, radius: 400 }], intensityAt: () => 1 }
+    const caught = cover.scorch(blaze)
+    expect(caught.length).toBeGreaterThan(50)
+
+    // Every tree caught at once, so any bunching at the end is the burn
+    // duration alone. If they all shared one it would be a single step.
+    const steps = new Set<number>()
+    for (let i = 0; i < 200; i++) {
+      if (cover.advance(0.4).length > 0) steps.add(i)
+    }
+    expect(steps.size).toBeGreaterThan(8)
+  })
+
+  it('keeps only the burning trees on its list, so ageing costs nothing per green tree', () => {
+    const cover = new TreeCover(new Terrain(420))
+    expect(cover.burning).toHaveLength(0)
+
+    const tree = cover.trees[0]
+    cover.scorch({ patches: [{ x: tree.x, z: tree.z, radius: 40 }], intensityAt: () => 1 })
+    const alight = cover.burning.length
+    expect(alight).toBeGreaterThan(0)
+
+    for (let i = 0; i < 200; i++) cover.advance(0.4)
+    expect(cover.burning).toHaveLength(0)
+    expect(cover.burntFraction).toBeGreaterThan(0)
+  })
+
+  it('counts a tree as burnt from the moment it catches, not only when it is spent', () => {
+    const cover = new TreeCover(new Terrain(420))
+    const tree = cover.trees[0]
+    cover.scorch({ patches: [{ x: tree.x, z: tree.z, radius: 40 }], intensityAt: () => 1 })
+    expect(cover.burntFraction).toBeGreaterThan(0)
+  })
+
+  it('never sets a tree alight twice', () => {
+    const cover = new TreeCover(new Terrain(420))
+    const blaze = { patches: [{ x: 0, z: 0, radius: 400 }], intensityAt: () => 1 }
+    const first = cover.scorch(blaze).length
+    expect(first).toBeGreaterThan(0)
+    expect(cover.scorch(blaze)).toHaveLength(0)
+
+    // And a spent tree does not catch again when the fire is still over it.
+    for (let i = 0; i < 200; i++) cover.advance(0.4)
+    expect(cover.scorch(blaze)).toHaveLength(0)
+    expect(cover.burning).toHaveLength(0)
   })
 })

@@ -1,5 +1,12 @@
 import type { Terrain } from './Terrain'
 
+/**
+ * What the fire has done to a tree so far. A tree burns for a while before it
+ * is gone — green, then alight, then a bare snag — because the middle state is
+ * most of what you actually see from the air at the fire's edge.
+ */
+export type TreeState = 'green' | 'burning' | 'burnt'
+
 /** One tree: where it stands, how big, and how tall its canopy reaches. */
 export interface Tree {
   /** Its place in the forest, which is also its place in the drawing. */
@@ -13,8 +20,14 @@ export interface Tree {
   top: number
   /** Horizontal radius that counts as a strike. */
   radius: number
-  /** True once the fire has been through it. Burnt trees never come back. */
-  burnt: boolean
+  state: TreeState
+  /** Seconds it has been alight. */
+  alight: number
+  /**
+   * How long this one takes to burn out. Varied per tree so a stand does not
+   * all flip to black on the same frame.
+   */
+  burnsFor: number
 }
 
 /** Somewhere trees must not grow — a pad, a clearing. */
@@ -37,6 +50,8 @@ export interface Clearing {
 export class TreeCover {
   readonly trees: readonly Tree[]
   private readonly cells = new Map<string, Tree[]>()
+  /** Just the trees currently alight, so ageing them costs nothing per green tree. */
+  private readonly alight: Tree[] = []
 
   constructor(terrain: Terrain, clearings: readonly Clearing[] = [], attempts = ATTEMPTS) {
     const trees: Tree[] = []
@@ -60,7 +75,9 @@ export class TreeCover {
         top: ground + TOP_OF_CANOPY * scale,
         // The hull, not the rotor — so threading between trunks is possible.
         radius: CANOPY_RADIUS * scale + HULL_RADIUS,
-        burnt: false,
+        state: 'green',
+        alight: 0,
+        burnsFor: BURNS_FOR * (0.65 + fraction(i, 4) * 0.7),
       })
     }
 
@@ -107,10 +124,12 @@ export class TreeCover {
           const bucket = this.cells.get(cellKey(patch.x + ox * CELL, patch.z + oz * CELL))
           if (!bucket) continue
           for (const tree of bucket) {
-            if (tree.burnt) continue
+            if (tree.state !== 'green') continue
             if (Math.hypot(tree.x - patch.x, tree.z - patch.z) > patch.radius) continue
             if (fire.intensityAt(tree.x, tree.z) < CATCHES_AT) continue
-            tree.burnt = true
+            tree.state = 'burning'
+            tree.alight = 0
+            this.alight.push(tree)
             caught.push(tree)
           }
         }
@@ -119,10 +138,41 @@ export class TreeCover {
     return caught
   }
 
-  /** How much of the forest has burned, 0..1 — the scale of the thing. */
+  /**
+   * Age the trees that are alight, and report the ones that have just burnt
+   * out so the drawing can strip them to snags.
+   *
+   * Only the burning ones are kept in a list and walked; the several thousand
+   * green trees have nothing to age.
+   */
+  advance(dt: number): Tree[] {
+    const spent: Tree[] = []
+    for (let i = this.alight.length - 1; i >= 0; i--) {
+      const tree = this.alight[i]
+      tree.alight += dt
+      if (tree.alight < tree.burnsFor) continue
+      tree.state = 'burnt'
+      this.alight.splice(i, 1)
+      spent.push(tree)
+    }
+    return spent
+  }
+
+  /** The trees currently alight, for whoever is drawing the flames in them. */
+  get burning(): readonly Tree[] {
+    return this.alight
+  }
+
+  /** How far through burning a tree is, 0..1. */
+  static burnProgress(tree: Tree): number {
+    if (tree.state === 'burnt') return 1
+    return Math.min(1, tree.alight / tree.burnsFor)
+  }
+
+  /** How much of the forest the fire has reached, 0..1 — the scale of the thing. */
   get burntFraction(): number {
     if (this.trees.length === 0) return 0
-    return this.trees.reduce((count, tree) => count + (tree.burnt ? 1 : 0), 0) / this.trees.length
+    return this.trees.reduce((count, tree) => count + (tree.state === 'green' ? 0 : 1), 0) / this.trees.length
   }
 
   /** Distance to the nearest trunk within `within`, or Infinity if there is none. */
@@ -177,6 +227,12 @@ const MAX_SLOPE = 0.55
 const CELL = 24
 /** Heat at a trunk that sets it alight. Embers behind the front still count. */
 const CATCHES_AT = 0.12
+/**
+ * Seconds a tree stays alight before it is a snag, on average. Long enough to
+ * watch a stand go up as the front passes, short enough that the ground behind
+ * the front is properly dead within a shift.
+ */
+const BURNS_FOR = 11
 
 /** Matches the drawn tree: trunk plus cone, measured from the ground. */
 export const TRUNK_HEIGHT = 6

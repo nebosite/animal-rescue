@@ -43,6 +43,7 @@ export class World {
   readonly sites: SiteFinder
 
   readonly forest: Forest
+  readonly terrainMesh: TerrainMesh
   readonly winchLine = new WinchLine()
   readonly waterDrop = new WaterDrop()
 
@@ -76,7 +77,8 @@ export class World {
     const bounce = new THREE.HemisphereLight(0xaee0ff, 0x86b85a, 0.8)
     this.scene.add(bounce)
 
-    this.scene.add(new TerrainMesh(this.terrain).mesh)
+    this.terrainMesh = new TerrainMesh(this.terrain)
+    this.scene.add(this.terrainMesh.mesh)
 
     this.padModels = new Map([[this.rescuePad, new LandingPadModel(this.rescuePad, RESCUE_RIM_COLOR)]])
     for (const model of this.padModels.values()) this.scene.add(model.group)
@@ -127,11 +129,31 @@ export class World {
     this.waterDrop.update(dt)
   }
 
-  /** Blacken every tree the fire has just been through. */
-  burnTrees(): number {
+  /**
+   * Move everything the fire has touched one step further along: the ground it
+   * has crossed goes black, trees it has just reached catch, trees already
+   * alight burn down, and the ones that are spent become snags.
+   *
+   * `dt` is the time since the *last call*, not since the last frame — this is
+   * deliberately run every so often rather than every frame, since none of
+   * these answers change quickly.
+   */
+  burnTrees(dt: number): number {
+    for (const patch of this.fire.patches) {
+      const hollow = this.fire.hollowOf(patch)
+      if (hollow > 0) this.terrainMesh.scorch(patch.x, patch.z, patch.radius * hollow)
+    }
+
     const caught = this.treeCover.scorch(this.fire)
-    if (caught.length === 0) return 0
-    for (const tree of caught) this.forest.burn(tree.index)
+    const spent = this.treeCover.advance(dt)
+
+    // Redrawn every step while they burn, so the char and the glow move.
+    for (const tree of this.treeCover.burning) {
+      this.forest.setAlight(tree.index, TreeCover.burnProgress(tree))
+    }
+    for (const tree of spent) this.forest.burnOut(tree.index)
+
+    if (caught.length === 0 && spent.length === 0 && this.treeCover.burning.length === 0) return 0
     this.forest.commitBurns()
     return caught.length
   }

@@ -34,6 +34,14 @@ export class FireField {
   private readonly embers: Ember[][] = []
   private readonly puffs: Array<Array<{ angle: number; spread: number; scale: number; phase: number }>> = []
   private readonly transform = new THREE.Object3D()
+  /**
+   * Where a slot goes when there is nothing for it to draw. Its own matrix,
+   * not the scratch one: sharing them meant the first flame placed each frame
+   * overwrote it, and every unused slot then drew a copy of that flame stacked
+   * on the same spot — a hundred of them, which is why the fire had a white
+   * hot-spot in it that never moved.
+   */
+  private readonly hidden = new THREE.Matrix4().makeScale(0, 0, 0)
 
   constructor(private readonly fire: Fire, private readonly terrain: Terrain) {
     for (let p = 0; p < MAX_PATCHES; p++) {
@@ -100,9 +108,7 @@ export class FireField {
   /** Flicker the flames, roll the smoke upward, and follow the fire's spread. */
   update(elapsed: number): void {
     const patches = this.fire.patches
-    const hidden = this.transform
-    hidden.scale.setScalar(0)
-    hidden.updateMatrix()
+    const hidden = this.hidden
 
     for (let p = 0; p < MAX_PATCHES; p++) {
       const patch = patches[p]
@@ -110,8 +116,8 @@ export class FireField {
       const puffs = this.puffs[p]
 
       if (!patch) {
-        for (let i = 0; i < FLAMES_PER_PATCH; i++) this.flames.setMatrixAt(p * FLAMES_PER_PATCH + i, hidden.matrix)
-        for (let i = 0; i < SMOKE_PER_PATCH; i++) this.smoke.setMatrixAt(p * SMOKE_PER_PATCH + i, hidden.matrix)
+        for (let i = 0; i < FLAMES_PER_PATCH; i++) this.flames.setMatrixAt(p * FLAMES_PER_PATCH + i, hidden)
+        for (let i = 0; i < SMOKE_PER_PATCH; i++) this.smoke.setMatrixAt(p * SMOKE_PER_PATCH + i, hidden)
         continue
       }
 
@@ -122,6 +128,15 @@ export class FireField {
         const across = hollow + ember.spread * (1 - hollow)
         const x = patch.x + Math.cos(ember.angle) * across * patch.radius
         const z = patch.z + Math.sin(ember.angle) * across * patch.radius
+
+        // A patch's own ring can still lie across ground an overlapping
+        // neighbour has already burnt through. Flame there reads as the whole
+        // area being alight instead of a front with dead black behind it, so
+        // put the slot away rather than draw it.
+        if (this.fire.isBurntOut(x, z)) {
+          this.flames.setMatrixAt(p * FLAMES_PER_PATCH + i, hidden)
+          return
+        }
         // The ground under a flame only moves when the patch has grown; refresh
         // it then rather than sampling the terrain for every flame every frame.
         if (Math.abs(patch.radius - ember.seededAtRadius) > RESEED_AFTER) {

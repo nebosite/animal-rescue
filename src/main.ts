@@ -179,14 +179,18 @@ renderer.setAnimationLoop(() => {
   workTheCopilot(ground, dt)
 
   world.helicopter.moveTo(helicopter.position)
-  world.helicopter.setAttitude(helicopter.heading, helicopter.pitch, helicopter.roll)
+  world.helicopter.setAttitude(
+    helicopter.heading,
+    helicopter.pitch + helicopter.shakePitch,
+    helicopter.roll + helicopter.shakeRoll,
+  )
   world.helicopter.spin(dt)
   world.follow(helicopter.position, helicopter.heading, dt)
   world.updateEffects(timer.getElapsed(), dt, helicopter.position)
   world.winchLine.update(helicopter.position, winch.length)
   // Burning the whole forest every frame is wasted work: the answer changes
   // only as the fire creeps.
-  if (underway && !shift.over && burnCheck.advance(dt)) world.burnTrees()
+  if (underway && !shift.over && burnCheck.due(dt)) world.burnTrees(BURN_STEP)
 
   const landedPad = LandingPad.landedOn(world.pads, helicopter.position, helicopter.isOnGround)
   world.highlightPad(landedPad)
@@ -593,7 +597,8 @@ const WINCH_REACH = 11
 /** Fire this close to an animal is worth spending water on. */
 const WATER_WORTH_IT = 90
 /** Trees are re-checked for catching alight at this interval, not every frame. */
-const burnCheck = new Cooldown(0.4)
+const BURN_STEP = 0.4
+const burnCheck = new Cooldown(BURN_STEP)
 /** And a load of water cannot be dropped faster than this. */
 const waterCooldown = new Cooldown(1.2)
 // Small enough to look like wildlife next to the helicopter rather than a

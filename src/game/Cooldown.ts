@@ -18,4 +18,15 @@ export class Cooldown {
     this.remaining = this.seconds
     return true
   }
+
+  /**
+   * Advance and fire in one call, for the common "do this every so often"
+   * case. `advance` returns nothing, so using it directly as a condition
+   * silently never fires — which is precisely how the forest came to never
+   * catch alight. This is the shape that cannot be got wrong.
+   */
+  due(dt: number): boolean {
+    this.advance(dt)
+    return this.tryFire()
+  }
 }

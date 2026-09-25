@@ -36,5 +36,9 @@ function wander(t: number, phase: number): number {
   )
 }
 
-/** Acceleration, in units per second squared, at full strength. */
-const FORCE = 26
+/**
+ * Acceleration, in units per second squared, at full strength. Big enough to
+ * shove the helicopter off a line it was holding — over a fire the air is
+ * supposed to be a problem, not a texture.
+ */
+const FORCE = 44

@@ -27,15 +27,15 @@ describe('Turbulence', () => {
   })
 
   it('stays bounded — it never becomes a launch', () => {
-    for (const value of sample(60)) expect(Math.abs(value)).toBeLessThan(30)
+    for (const value of sample(60)) expect(Math.abs(value)).toBeLessThan(50)
   })
 
   it('pushes both ways, averaging out rather than blowing you off the map', () => {
     const values = sample(60)
     const mean = values.reduce((sum, v) => sum + v, 0) / values.length
     expect(Math.abs(mean)).toBeLessThan(2)
-    expect(Math.max(...values)).toBeGreaterThan(5)
-    expect(Math.min(...values)).toBeLessThan(-5)
+    expect(Math.max(...values)).toBeGreaterThan(12)
+    expect(Math.min(...values)).toBeLessThan(-12)
   })
 
   it('shoves the two axes differently, so it is not a straight line', () => {

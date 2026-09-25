@@ -206,6 +206,40 @@ describe('Helicopter flight model', () => {
     expect(helicopter.position.y).toBeGreaterThan(climbing + 5)
   })
 
+  it('is lifted and shoved by air doing something of its own', () => {
+    const calm = fly(fresh(), {}, 1)
+    const buffeted = fresh()
+    for (let i = 0; i < 60; i++) {
+      buffeted.update(noInput(), 1 / 60)
+      buffeted.applyAirCurrent(40, 30, -20, 1 / 60)
+    }
+    expect(buffeted.position.y).toBeGreaterThan(calm.position.y + 5)
+    expect(buffeted.position.x).toBeGreaterThan(calm.position.x + 3)
+    expect(buffeted.position.z).toBeLessThan(calm.position.z - 2)
+  })
+
+  it('rocks visibly in rough air, and the rocking survives the lean easing', () => {
+    const helicopter = fresh()
+    for (let i = 0; i < 30; i++) {
+      helicopter.update(noInput(), 1 / 60)
+      helicopter.applyAirCurrent(0, 34, -28, 1 / 60)
+    }
+    // Regression: folding this into pitch/roll let the lean easing erase it.
+    expect(Math.abs(helicopter.shakeRoll)).toBeGreaterThan(0.15)
+    expect(Math.abs(helicopter.shakePitch)).toBeGreaterThan(0.15)
+    expect(Math.abs(helicopter.shakeRoll)).toBeLessThanOrEqual(0.44)
+  })
+
+  it('settles again once the air smooths out', () => {
+    const helicopter = fresh()
+    helicopter.update(noInput(), 1 / 60)
+    helicopter.applyAirCurrent(0, 40, 40, 1 / 60)
+    expect(Math.abs(helicopter.shakeRoll)).toBeGreaterThan(0.1)
+    fly(helicopter, {}, 3)
+    expect(Math.abs(helicopter.shakeRoll)).toBeLessThan(0.01)
+    expect(Math.abs(helicopter.shakePitch)).toBeLessThan(0.01)
+  })
+
   it('rests on the ground it is told about, not a fixed floor', () => {
     const hilltop = fresh()
     for (let i = 0; i < 600; i++) hilltop.update({ ...noInput(), collective: -1 }, 1 / 60, 60)

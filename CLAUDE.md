@@ -73,6 +73,24 @@ Rules that follow from it:
   renderer, so it can be tested with no browser and no GL context. The Three.js
   layer stays dumb: it reads state and draws it.
 - **A bug found by running becomes a permanent test,** not just a fix.
+- **Never verify a feature by calling its own function.** Twice now that hid a
+  dead wire: the forest never burned in play because `burnCheck.advance(dt)`
+  returns `void` and so was always falsy, and the check had called
+  `world.burnTrees()` by hand. `Cooldown.due(dt)` exists so that shape cannot
+  be got wrong again. Drive the real loop and read the state it produced.
+- **Test the increment, not the jump cut.** The ground scar passed a test that
+  aged the fire in one step and was nearly invisible in play, because the burn
+  actually creeps: every vertex is first reached at the rim, where the falloff
+  is nil. Step the world the way the game steps it.
+- **Never share a scratch object with a value you mean to keep.** `FireField`
+  used one `Object3D` both to place each flame and as the "put this slot away"
+  matrix, so the first flame drawn each frame *became* the hidden matrix and
+  every unused slot drew a copy of it stacked on one spot. Constants that mean
+  something get their own object.
+- **`Matrix4.decompose` reports a scale of (1,1,1) for a degenerate matrix.**
+  A slot scaled to nothing therefore comes back through it looking like a
+  full-sized instance at the origin. Read the matrix elements when a test
+  needs to know what is actually drawn.
 - **Object-oriented, one class per file.** Filename matches the class.
 - **TypeScript strict.** No `any` without a comment earning it.
 - Comments explain *why*, not *what*. Constants live at the bottom of the file.
@@ -131,25 +149,42 @@ gets you shouted at. It never destroys you — you can always climb back out.
 
 ## Fire and damage
 
-The fire burns as a **front**. A patch is a solid blaze when it catches and a
-ring once it has eaten its middle, blending between the two with age — so the
-flame is an advancing edge with smouldering black behind it, and flying
-*behind* the front is survivable. `TreeCover.scorch` blackens every tree the
-fire reaches (once each, through the same grid the strike lookups use) and
-`Forest.burn` strips its canopy to a charred spike.
+A front of burning patches (`Fire.ts`) lies across the run between the pads,
+so every trip is a decision: go round, or climb over. Heat thins with height —
+the column reaches 85 above the ground — so climbing over is real but costly.
 
-Fire makes its own weather: `updraftAt` lifts you over the flames, hardest a
-third of the way up the column, and `roughnessAt` drives the buffeting in
-`Turbulence` — three sines with no common period, so rough air never falls
-into a rhythm. Both are applied after the update that moved the helicopter.
+It reads as a *front* because it leaves a wake. A young patch burns right
+through; an old one has eaten its middle and burns as a ring, so there is
+flame at the edge, black behind it, and green ahead. Flame is never drawn on
+ground another patch has already burnt through, or an overlapping pair reads
+as one big blaze instead of a line with dead black behind it.
 
-A front of burning patches (`Fire.ts`) lies across the run from the base to
-the high ground and creeps downwind toward it — every patch widens, and every
-fourteen seconds a new one catches at the edge of an old one, up to the thirty
-the drawing pre-allocates. Every trip is a decision (round, or over — heat
-thins with height and the column reaches 85 above the ground) and every wait
-has a clock. `FireField` places each patch's flames from fractional offsets
-times its current radius, so growth and new patches need no rebuilding.
+A tree does not switch from green to black. It has three states (`TreeState`)
+and takes about eleven seconds, varied per tree so a stand does not all flip
+on one frame:
+
+- **green** — untouched.
+- **burning** — black trunk, needles going green → dry gold → black, the crown
+  eaten from the bottom up, and an additive ember cone climbing behind the
+  retreating green. Three things at once, which is what a burning tree looks
+  like and what makes the front legible from the air.
+- **burnt** — a bare black stick. No crown, no fire in it.
+
+`TreeCover` owns the states and keeps the burning ones on their own list, so
+ageing them costs nothing per green tree; `Forest.setAlight` and `burnOut`
+only draw them. `TerrainMesh.scorch` blackens the land inside the hollow.
+All of it is driven from `World.burnTrees(dt)` every 0.4 s, not every frame.
+
+**The air over it is the point.** `Fire.updraftAt` and `roughnessAt` are keyed
+to `chimneyAt` — the whole burn plus a spill around it — not to `intensityAt`,
+which is only the flame band. Keying them to the flame was the first attempt
+and the weather was imperceptible, because most of a mature patch's *area* is
+the cool hollow in the middle. Hovering over a fire now climbs at about 16
+units per second and rocks the airframe some 20°. The rocking lives in
+`Helicopter.shakePitch`/`shakeRoll`, separate from the flown attitude, and
+`main.ts` adds the two when it draws: folded into `pitch`/`roll` the lean
+easing quietly undid it every frame, so rough air moved the helicopter without
+ever *looking* like it.
 
 Fire harms only the machine, never anything alive. `Airframe` tracks integrity:
 about three seconds in the flames wrecks it, with a second or so of warning
@@ -158,54 +193,6 @@ controls and `Autopilot` flies it home — climb, cruise, land — and the base 
 repairs it. The autopilot emits ordinary `FlightInput`, so it flies through the
 same flight model with no special cases, and is tested by simply letting it fly
 from anywhere on the map and seeing where it ends up.
-
-## Look
-
-Big, playful type: every HUD size is a base times the `--ui` CSS variable
-(3 at the moment) in the font Fredoka, with rounded system fallbacks if the
-web font cannot load.
-
-A bright, saturated day: sky blue, fresh greens, an orange canyon, warm stone,
-a red helicopter. The first palette was a smoky dusk and play-tested as gloomy
-for a game meant to be playful. The fire still reads because the flames are
-additive and the smoke is dark.
-
-## Guidance
-
-A map this size with a small animal in it is unplayable without being told
-where to go — the first play-test was a minute of flying around finding
-nothing. Three things fix it, all reading from one source:
-
-- **`Objective.guidanceFor()`** — a pure function turning the situation into a
-  task and a hint ("Find Pip the fox kit" / "You are over the pad — hold Z to
-  come down (45 m up)"). Every branch is unit tested. Shown top-left.
-- **`Beacon`** — a pillar of light over the base and a shorter flare over each
-  waiting animal, exempt from fog so they are visible from across the map,
-  fading out up close so they do not become a wall across the view. The ground
-  ring stays: that is what you aim the skids at.
-- **`TargetMarker`** — one on-screen pointer per animal (or one for the base
-  when carrying) that sits on the target when in view and pins to the edge
-  pointing the way when it is not; the recommended one is brighter, a
-  threatened one is orange.
-
-## The copilot, and player two
-
-Bram — a hyper-intelligent ferret who consults his own AI assistant about
-everything and reports its findings with total confidence — works the two
-controls the pilot cannot reach:
-
-- **The winch** (`Winch`): a line out of the door. Hover low and steady over
-  an animal and it comes up without ever touching down. Harder than landing,
-  so it pays a bonus.
-- **The water** (`WaterTank`): four loads, refilled on the base pad.
-  `Fire.douse` knocks the front back where it lands — it never puts the fire
-  out, so *where* is the whole decision.
-
-`Copilot` decides both when flying himself. **A second player takes the seat**
-the moment they touch it (`CopilotInput`): Space and F on the keyboard, or A
-and B on a second controller — which is the intended way, since the pilot
-needs both hands. Bram then becomes, to his considerable satisfaction, purely
-advisory.
 
 ## The loop so far
 
