@@ -67,14 +67,14 @@ export class Announcer {
     return this.chief(this.pick('chief.scorched', CHIEF.lines.scorched))
   }
 
-  /** The Chief taking the controls off you. */
-  grounded(): RadioLine {
-    return this.chief(this.pick('chief.grounded', CHIEF.lines.grounded))
+  /** The Chief, while there is still a helicopter left to save. */
+  failing(): RadioLine {
+    return this.chief(this.pick('chief.failing', CHIEF.lines.failing))
   }
 
-  /** The Chief handing a mended helicopter back. */
-  repaired(): RadioLine {
-    return this.chief(this.pick('chief.repaired', CHIEF.lines.repaired))
+  /** And once there is not. He never takes the controls; he just wants it home. */
+  wrecked(): RadioLine {
+    return this.chief(this.pick('chief.wrecked', CHIEF.lines.wrecked))
   }
 
   /** The copilot. `about` fills in {name} where a line wants one. */

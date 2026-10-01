@@ -1,13 +1,21 @@
 import * as THREE from 'three'
 import type { Terrain } from '../game/Terrain'
+import { StoneTexture } from './StoneTexture'
 
 /**
  * Rocks strewn where the ground is broken — mostly down the canyon, where the
  * hills have been stripped back to bedrock.
  *
- * One instanced mesh of lumpy low-poly stones, each squashed and turned
- * differently so a few hundred of them do not read as the same rock repeated.
- * Scattered deterministically, so the canyon is the same canyon every run.
+ * One instanced mesh of lumpy stones, each squashed and turned differently so
+ * a few thousand of them do not read as the same rock repeated. Scattered
+ * deterministically, so the canyon is the same canyon every run.
+ *
+ * The grain comes from a procedural stone texture rather than from geometry.
+ * Instancing shares one set of vertices between every rock, so there is no way
+ * to make each lump a different shape without paying for another mesh — but a
+ * noise map and a bump map on the shared geometry cost nothing per rock and
+ * do the job better, because the detail they add is finer than any triangle
+ * budget would allow.
  */
 export class Boulders {
   readonly group = new THREE.Group()
@@ -36,11 +44,22 @@ export class Boulders {
 
     this.count = placed.length
 
-    // Detail 0 is a twenty-sided lump — enough to catch the light as stone
-    // without another thousand triangles per rock.
+    // Detail 1 is an eighty-sided lump: enough facets that the silhouette
+    // breaks up and the bump map has somewhere to sit, without another
+    // thousand triangles per rock.
+    const stone = new StoneTexture()
     const rocks = new THREE.InstancedMesh(
-      new THREE.IcosahedronGeometry(1, 0),
-      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, flatShading: true }),
+      new THREE.IcosahedronGeometry(1, 1),
+      new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        map: stone.map,
+        bumpMap: stone.bump,
+        bumpScale: BUMP,
+        roughness: 1,
+        // Faceted as well as grainy: the flat shading gives the broken planes
+        // of split rock, the maps give the surface on them.
+        flatShading: true,
+      }),
       Math.max(1, this.count),
     )
 
@@ -79,3 +98,5 @@ const MAX_SIZE = 7.5
 
 const STONE_PALE = new THREE.Color(0xc9bda8)
 const STONE_DARK = new THREE.Color(0x8a7a66)
+/** How deep the grain reads as relief. Enough to catch the sun, not enough to boil. */
+const BUMP = 0.45

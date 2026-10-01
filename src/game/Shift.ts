@@ -9,6 +9,23 @@ export class Shift {
 
   constructor(readonly seconds = SHIFT_SECONDS) {}
 
+  /**
+   * Call it early. The clock is not the only thing that can finish a shift —
+   * bringing a written-off helicopter home ends it too — and showing the
+   * end-of-shift card without actually ending the shift leaves the clock
+   * running behind it and no way to start another one.
+   */
+  end(): void {
+    this.elapsed = this.seconds
+    this.ended = true
+  }
+
+  /** Another shift, from the top. */
+  restart(): void {
+    this.elapsed = 0
+    this.ended = false
+  }
+
   /** Time passes. True on the one frame the shift ends. */
   advance(dt: number): boolean {
     if (this.ended) return false

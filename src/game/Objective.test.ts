@@ -6,7 +6,8 @@ const base: Situation = {
   species: 'fox kit',
   siteLabel: 'a hilltop',
   carrying: false,
-  needsRepair: false,
+  wrecked: false,
+  failing: false,
   onGround: false,
   overTarget: false,
   range: 500,
@@ -88,15 +89,20 @@ describe('guidanceFor', () => {
     expect(at({ closingSeconds: 12.2, fireClosingOn: 'Mo' }).hint).toMatch(/^13 seconds left — The fire is closing on Mo — /)
   })
 
-  it('explains itself when the Chief takes over', () => {
-    const guidance = at({ needsRepair: true, carrying: true })
-    expect(guidance.task).toContain('Chief')
-    expect(guidance.hint).toContain('repairs')
+  it('sends a wreck home, and never says it cannot be flown', () => {
+    const guidance = at({ wrecked: true, carrying: true })
     expect(guidance.target).toBe('base')
+    expect(guidance.hint).toContain('still flies')
+    expect(guidance.task).not.toMatch(/autopilot|grounded/i)
+  })
+
+  it('says the airframe is nearly gone while there is still a choice about it', () => {
+    expect(at({ failing: true }).hint).toContain('nearly gone')
+    expect(at({ failing: false }).hint).not.toContain('nearly gone')
   })
 
   it('wraps up when the shift is over', () => {
-    const guidance = at({ shiftOver: true, needsRepair: true })
+    const guidance = at({ shiftOver: true, wrecked: true })
     expect(guidance.task).toBe('Shift over')
     expect(guidance.hint).toContain('R')
   })

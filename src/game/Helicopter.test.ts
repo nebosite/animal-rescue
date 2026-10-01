@@ -268,3 +268,69 @@ describe('Helicopter flight model', () => {
     expect(fly(fresh(), { pitch: 1, collective: 1 }, 1).effort).toBeGreaterThan(0.5)
   })
 })
+
+describe('Helicopter on a damaged machine', () => {
+  const flyFlatOut = (condition: number) => {
+    const helicopter = new Helicopter()
+    helicopter.condition = condition
+    for (let i = 0; i < 600; i++) helicopter.update({ pitch: 1, roll: 0, yaw: 0, collective: 1 }, 1 / 60, 0)
+    return helicopter
+  }
+
+  it('flies slower and climbs worse the worse the machine is', () => {
+    const fresh = flyFlatOut(1)
+    const wreck = flyFlatOut(0)
+    expect(wreck.speed).toBeLessThan(fresh.speed * 0.8)
+  })
+
+  it('still gets a wreck off the ground and home', () => {
+    // Damage is a handicap, never a loss of control: the pilot keeps the
+    // decision about when to stop, and that only works if a write-off flies.
+    const wreck = new Helicopter()
+    wreck.condition = 0
+    wreck.position.set(0, 2, 0)
+    for (let i = 0; i < 120; i++) wreck.update({ pitch: 0, roll: 0, yaw: 0, collective: 1 }, 1 / 60, 0)
+    expect(wreck.isOnGround).toBe(false)
+    expect(wreck.position.y).toBeGreaterThan(8)
+
+    for (let i = 0; i < 300; i++) wreck.update({ pitch: 1, roll: 0, yaw: 0, collective: 0 }, 1 / 60, 0)
+    expect(wreck.speed).toBeGreaterThan(10)
+  })
+
+  it('judders when it is hurt, and sits perfectly still when it is not', () => {
+    const fresh = new Helicopter()
+    for (let i = 0; i < 60; i++) fresh.update(noInput(), 1 / 60, 0)
+    expect(fresh.rattlePitch).toBe(0)
+    expect(fresh.rattleRoll).toBe(0)
+
+    const wreck = new Helicopter()
+    wreck.condition = 0
+    let worst = 0
+    for (let i = 0; i < 300; i++) {
+      wreck.update(noInput(), 1 / 60, 0)
+      worst = Math.max(worst, Math.abs(wreck.rattlePitch), Math.abs(wreck.rattleRoll))
+    }
+    expect(worst).toBeGreaterThan(0.05)
+  })
+
+  it('barely judders at a scratch, so the shake means something when it comes', () => {
+    const scratched = new Helicopter()
+    scratched.condition = 0.9
+    let worst = 0
+    for (let i = 0; i < 300; i++) {
+      scratched.update(noInput(), 1 / 60, 0)
+      worst = Math.max(worst, Math.abs(scratched.rattlePitch))
+    }
+    expect(worst).toBeLessThan(0.01)
+  })
+
+  it('keeps the judder out of the flown attitude, where the lean easing lives', () => {
+    // The same trap as rough air: anything folded into pitch/roll is pulled
+    // straight back out by the easing, so the machine shakes without ever
+    // looking like it.
+    const wreck = new Helicopter()
+    wreck.condition = 0
+    for (let i = 0; i < 300; i++) wreck.update(noInput(), 1 / 60, 0)
+    expect(Math.abs(wreck.pitch)).toBeLessThan(1e-6)
+  })
+})

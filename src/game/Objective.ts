@@ -6,7 +6,10 @@ export interface Situation {
   /** Where that animal is waiting — "a hilltop". Unused while carrying. */
   siteLabel: string
   carrying: boolean
-  needsRepair: boolean
+  /** Nothing left of the machine. It still flies; landing at base ends the shift. */
+  wrecked: boolean
+  /** Nearly nothing left, which is the moment to decide whether to press on. */
+  failing: boolean
   onGround: boolean
   /** Close enough to the target to land and have it count, whatever the altitude. */
   overTarget: boolean
@@ -53,12 +56,12 @@ export function guidanceFor(situation: Situation): Guidance {
     return { task: 'Shift over', hint: 'Press R to fly another one.', target: 'base', landing: false }
   }
 
-  if (situation.needsRepair) {
+  if (situation.wrecked) {
     return {
-      task: 'The Chief has taken the controls',
-      hint: 'Too much damage — sit tight while he flies you back for repairs.',
+      task: 'The helicopter is finished — bring her home',
+      hint: 'She still flies, barely. Put her down on the blue pad to end the shift.',
       target: 'base',
-      landing: false,
+      landing: situation.range <= APPROACH_RANGE,
     }
   }
 
@@ -75,6 +78,9 @@ export function guidanceFor(situation: Situation): Guidance {
 function prefix(situation: Situation): string {
   const parts: string[] = []
   if (situation.closingSeconds !== null) parts.push(`${Math.ceil(situation.closingSeconds)} seconds left`)
+  // Nothing mends in the air any more, so this is a decision and not a status:
+  // one more pickup, or bank what you have.
+  if (situation.failing) parts.push('the airframe is nearly gone')
   if (situation.fireClosingOn && !situation.carrying) {
     parts.push(situation.fireClosingOn === situation.animalName
       ? `The fire is closing on ${situation.animalName}`

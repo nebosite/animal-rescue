@@ -1,7 +1,7 @@
 import { ROSTER, type AnimalProfile } from './AnimalProfile'
 import type { Fire } from './Fire'
 import type { LandingPad } from './LandingPad'
-import type { Site, SiteFinder, SiteKind } from './SiteFinder'
+import type { Site, SiteFinder } from './SiteFinder'
 
 /** An animal out in the landscape, waiting to be found. */
 export interface Waiting {
@@ -171,17 +171,46 @@ export class Rescue {
     this.carriedByWinch = byWinch
   }
 
+  /**
+   * Another shift: nothing rescued, nobody aboard, three fresh animals out in
+   * the landscape. The fire has to be relit before this is called, or the new
+   * animals are placed around a front that has already crossed the map.
+   */
+  reset(): void {
+    this.score = 0
+    this.rescued = 0
+    this.waiting.length = 0
+    this.carrying = null
+    this.lastDelivery = null
+    this.lastBolted = null
+    this.nextInRoster = 0
+    this.seed = 0
+    this.carriedSeconds = 0
+    this.carriedFrom = null
+    this.carriedByWinch = false
+    this.restock()
+  }
+
   /** Rough handling while aboard costs a point of credit — but never the last one. */
   scold(): void {
     if (this.carrying && this.carrying.credit > 1) this.carrying.credit -= 1
   }
 
-  /** Keep the map stocked with animals to find. */
+  /**
+   * Keep the map stocked with animals to find.
+   *
+   * Every one of them stands in the fire's path — that is the premise: they are
+   * running from the front and you are the only way out. They are spread
+   * across three bands of distance from the flames, so at any moment there is
+   * someone with smoke over them and someone still out in the green, and the
+   * player has a real choice about which to spend the time on.
+   */
   restock(): void {
     while (this.waiting.length < this.slots) {
-      const kind = KINDS[this.nextInRoster % KINDS.length]
+      const aheadBy = BANDS[this.nextInRoster % BANDS.length]
       const avoid = this.waiting.map((w) => w.site)
-      const site = this.sites.find(kind, this.fire, this.seed++, avoid) ?? this.sites.find('clearing', this.fire, this.seed++, avoid)
+      const site = this.sites.findAhead(this.fire, aheadBy, this.seed++, avoid)
+        ?? this.sites.find('clearing', this.fire, this.seed++, avoid)
       if (!site) return
       const animal = this.roster[this.nextInRoster % this.roster.length]
       this.nextInRoster += 1
@@ -234,7 +263,13 @@ export const PICKUP_RADIUS = 13
 const BOLT_AT = 0.25
 /** Within this of the fire an animal counts as threatened. */
 const WORRYING_RANGE = 70
-const KINDS: readonly SiteKind[] = ['clearing', 'hilltop', 'fireline', 'canyon', 'ridge']
+/**
+ * How far ahead of the flames each animal waits, cycled over the three slots
+ * so there is always one with the fire at the treeline and one a long flight
+ * out. The near band is inside WORRYING_RANGE on purpose: somebody should
+ * always be the one the Chief is shouting about.
+ */
+const BANDS: readonly number[] = [55, 150, 300]
 /** A brisk direct flight, a little under the helicopter's top speed. */
 const PAR_SPEED = 30
 const PAR_SLACK = 10

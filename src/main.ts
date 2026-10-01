@@ -8,9 +8,8 @@ import { Rescue, type Waiting } from './game/Rescue'
 import { Handling } from './game/Handling'
 import { Announcer } from './game/Announcer'
 import { guidanceFor } from './game/Objective'
-import { TargetMarker } from './ui/TargetMarker'
+import { TargetMarker, type Box } from './ui/TargetMarker'
 import { Airframe } from './game/Airframe'
-import { Autopilot } from './game/Autopilot'
 import { Cooldown } from './game/Cooldown'
 import { Shift } from './game/Shift'
 import { noInput } from './game/FlightInput'
@@ -24,6 +23,7 @@ import { AudioEngine } from './audio/AudioEngine'
 import { Soundscape } from './audio/Soundscape'
 import { VolumeControl } from './ui/VolumeControl'
 import { RadioPanel } from './ui/RadioPanel'
+import { RestartInput } from './game/RestartInput'
 
 const world = new World()
 const helicopter = new Helicopter()
@@ -37,7 +37,7 @@ const hud = new Hud(
   document.getElementById('status')!,
   document.getElementById('score')!,
   document.getElementById('controls-hint')!,
-  document.getElementById('compass')!,
+  document.getElementById('compass-needle')!,
   document.getElementById('range')!,
   document.getElementById('integrity-bar')!,
   document.getElementById('integrity')!,
@@ -55,19 +55,27 @@ const shift = new Shift()
 const handling = new Handling()
 const announcer = new Announcer()
 const airframe = new Airframe()
-const autopilot = new Autopilot()
 const air = new Turbulence()
 const copilot = new Copilot()
 const copilotSeat = new CopilotInput()
 copilotSeat.attach(window)
 const winch = new Winch()
 const tank = new WaterTank()
-// The Chief shouts about the fire and the trees, but not sixty times a second.
-const fireWarning = new Cooldown(4)
-const treeWarning = new Cooldown(6)
-// Bram talks a lot. These stop him talking over himself.
-const ferretChatter = new Cooldown(9)
-const ferretAlarm = new Cooldown(5)
+const restartInput = new RestartInput()
+restartInput.attach(window)
+/*
+ * How often anyone is allowed to say anything.
+ *
+ * All of these were roughly twice as brisk, and with real voices reading the
+ * lines aloud instead of blipping them the radio became something to talk over
+ * rather than something to listen to. A joke you hear every six seconds is not
+ * a joke. These are now spaced so a line is an event.
+ */
+const fireWarning = new Cooldown(9)
+const treeWarning = new Cooldown(11)
+const damageWarning = new Cooldown(20)
+const ferretChatter = new Cooldown(26)
+const ferretAlarm = new Cooldown(16)
 let seatTaken = false
 /** Animals the Chief has already flagged as in the fire's path. */
 const flagged = new Set<Waiting>()
@@ -84,7 +92,7 @@ const radio = new RadioPanel(
   document.getElementById('radio')!,
   document.getElementById('radio-speaker')!,
   document.getElementById('radio-text')!,
-  (line) => soundscape?.voice.speak(line.voice, line.text),
+  (line) => soundscape?.voice.speak(line.speaker, line.voice, line.text),
 )
 
 audio.onStart(() => {
@@ -100,10 +108,6 @@ new VolumeControl(
   document.getElementById('volume') as HTMLInputElement,
 )
 
-// Another shift: the simplest reliable reset is a fresh page.
-window.addEventListener('keydown', (event) => {
-  if (event.code === 'KeyR' && shift.over) location.reload()
-})
 
 if (import.meta.env.DEV) {
   // Dev-only handle so a browser-driving test can listen to the mix.
@@ -114,8 +118,8 @@ if (import.meta.env.DEV) {
     rescue,
     world,
     airframe,
-    autopilot,
     shift,
+    restartInput,
     winch,
     tank,
     copilot,
@@ -165,26 +169,31 @@ renderer.setAnimationLoop(() => {
   const ground = world.terrain.heightAt(helicopter.position.x, helicopter.position.z)
   burn(ground, dt)
 
-  // Once the machine is wrecked the pilot loses the controls and the Chief
-  // flies it home — the game's way of saying "enough" without destroying it.
-  // When the shift is over the controls simply go quiet.
-  const flying = shift.over
-    ? noInput()
-    : airframe.needsRepair
-      ? autopilot.update(helicopter, world.rescuePad.position, ground)
-      : controls.poll()
+  // The pilot never loses the controls. Damage makes the machine worse —
+  // slower, shakier, and audibly wrong — and the decision about when to take
+  // what is left of it home stays the player's. When the shift is over the
+  // controls simply go quiet.
+  helicopter.condition = airframe.condition
+  const flying = shift.over ? noInput() : controls.poll()
   helicopter.update(flying, dt, ground)
   flyThroughFire(ground, dt)
   clipTrees(dt)
   workTheCopilot(ground, dt)
 
   world.helicopter.moveTo(helicopter.position)
+  // Three separate angles, added only here: the attitude the pilot flew, the
+  // rocking the air is doing to it, and the judder of a broken machine. Folded
+  // into each other, the lean easing quietly undoes the other two every frame.
   world.helicopter.setAttitude(
     helicopter.heading,
-    helicopter.pitch + helicopter.shakePitch,
-    helicopter.roll + helicopter.shakeRoll,
+    helicopter.pitch + helicopter.shakePitch + helicopter.rattlePitch,
+    helicopter.roll + helicopter.shakeRoll + helicopter.rattleRoll,
   )
   world.helicopter.spin(dt)
+  // Sun straight overhead, so the shadow is directly below and its size is a
+  // reading of height — which is most of what the last ten metres of a descent
+  // needs and the chase camera cannot otherwise give.
+  world.shadow.update(helicopter.position.x, helicopter.position.z, helicopter.altitudeAboveGround)
   world.follow(helicopter.position, helicopter.heading, dt)
   world.updateEffects(timer.getElapsed(), dt, helicopter.position)
   world.winchLine.update(helicopter.position, winch.length)
@@ -233,6 +242,12 @@ renderer.setAnimationLoop(() => {
       }
     }
   }
+
+  // Bringing a write-off home is how a player chooses to stop. Checked after
+  // the delivery above, so the animal aboard is still credited on the way in.
+  if (!shift.over && airframe.isWrecked && landedPad === world.rescuePad) endShift('wrecked')
+
+  if (shift.over && restartInput.poll()) flyAnother()
 
   placeAnimals()
   guide()
@@ -296,7 +311,7 @@ function workTheCopilot(ground: number, dt: number): void {
   ferretChatter.advance(dt)
   ferretAlarm.advance(dt)
 
-  if (shift.over || airframe.needsRepair) {
+  if (shift.over) {
     winch.update(false, dt)
     return
   }
@@ -351,37 +366,56 @@ function dropWater(ground: number): void {
   radio.say(announcer.ferret('watered'))
 }
 
-/** Take fire damage, and repair on the base pad. */
+/**
+ * Take fire damage, and nothing else: there are no repairs inside a shift.
+ *
+ * What the damage buys is a worse helicopter for the rest of the round, so the
+ * whole back half of a shift is a judgement about how much more you are willing
+ * to spend. Putting a wreck down on the pad is how you choose to stop.
+ */
 function burn(ground: number, dt: number): void {
   fireWarning.advance(dt)
+  damageWarning.advance(dt)
 
-  const wasGrounded = airframe.needsRepair
+  const wasFailing = airframe.isFailing
+  const wasWrecked = airframe.isWrecked
   const altitude = helicopter.position.y - (ground + SKID_HEIGHT)
   const heat = world.fire.heatAt(helicopter.position.x, helicopter.position.z, altitude)
 
   if (heat > 0) {
     airframe.scorch(heat, dt)
-    if (!airframe.needsRepair && fireWarning.tryFire()) radio.say(announcer.scorched())
+    if (fireWarning.tryFire()) radio.say(announcer.scorched())
   }
 
-  if (airframe.needsRepair && !wasGrounded) {
-    hud.flash('AIRFRAME CRITICAL — AUTOPILOT RETURNING TO BASE')
-    radio.say(announcer.grounded())
+  if (airframe.isFailing && !wasFailing) {
+    hud.flash('AIRFRAME FAILING — SHE WILL NOT TAKE MUCH MORE')
+    radio.say(announcer.failing())
+  }
+  if (airframe.isWrecked && !wasWrecked) {
+    hud.flash('AIRFRAME GONE — LAND AT THE RESCUE BASE TO END THE SHIFT')
+    radio.say(announcer.wrecked())
+  }
+  // A standing reminder while flying a wreck about, since nothing will mend it.
+  if (airframe.isWrecked && !helicopter.isOnGround && damageWarning.tryFire()) {
+    radio.say(announcer.wrecked())
   }
 
-  // Sitting on the base pad puts it right, and fills the tank.
-  const onBase = helicopter.isOnGround && world.rescuePad.covers(helicopter.position)
-  if (onBase) tank.refill(dt)
-  if (airframe.needsRepair && onBase) {
-    airframe.repair()
-    hud.flash('REPAIRED — BACK IN THE AIR')
-    radio.say(announcer.repaired())
-  }
+  // The pad fills the tank. It does not mend anything.
+  if (helicopter.isOnGround && world.rescuePad.covers(helicopter.position)) tank.refill(dt)
 }
 
-/** Fly into the canopy and it drags, scrapes and costs paint. */
+/**
+ * Fly into the canopy and it drags, scrapes, costs paint — and throws a shower
+ * of needles and branch past the canopy.
+ *
+ * The debris is the point of this function as much as the damage is. Mowing the
+ * treetops is the commonest mistake in the game and it used to be the least
+ * visible one: a noise, a number ticking down, and nothing on screen. Now you
+ * can see what you did, and the Chief has something specific to be upset about.
+ */
 function clipTrees(dt: number): void {
   treeWarning.advance(dt)
+  debrisBurst.advance(dt)
   if (helicopter.isOnGround) return
 
   const struck = world.treeCover.strikeAt(helicopter.position.x, helicopter.position.y, helicopter.position.z)
@@ -391,15 +425,24 @@ function clipTrees(dt: number): void {
   airframe.scuff(TREE_DAMAGE * dt)
   soundscape?.effects.foliage()
 
-  if (airframe.needsRepair) return
+  // Thrown from where the rotor is actually in the tree, and carried along the
+  // flight path — a tidy symmetrical puff at the trunk looks like an explosion
+  // rather than like something being torn out of a canopy.
+  if (debrisBurst.tryFire()) {
+    world.debris.burst(
+      helicopter.position.x,
+      Math.min(helicopter.position.y, struck.top),
+      helicopter.position.z,
+      helicopter.velocity.x,
+      helicopter.velocity.z,
+    )
+  }
+
   if (treeWarning.tryFire()) {
-    // Whoever is aboard objects; otherwise it is the Chief's paint again.
-    if (rescue.carrying) {
-      rescue.scold()
-      radio.say(announcer.scolded(rescue.carrying.animal))
-    } else {
-      radio.say(announcer.treetops())
-    }
+    // The Chief always hears it — it is his paint and his forest. A passenger
+    // being thrown about objects as well, and that costs their credit.
+    radio.say(announcer.treetops())
+    if (rescue.carrying) rescue.scold()
   }
 }
 
@@ -407,7 +450,7 @@ function clipTrees(dt: number): void {
 function judgeFlying(dt: number): void {
   handling.setFussiness(rescue.carrying ? rescue.carrying.animal.fussiness : CHIEF_FUSSINESS)
   const rough = handling.update(helicopter, dt)
-  if (!rough || airframe.needsRepair || shift.over) return
+  if (!rough || shift.over) return
 
   // A knock costs a little paint as well as a telling-off.
   if (rough !== 'steep-bank') airframe.scuff()
@@ -429,14 +472,53 @@ function warnOfFire(): void {
   radio.say(announcer.fireClosingOn(threatened.animal))
 }
 
-/** Time. Freeze the controls, show the card, let the Chief have the last word. */
-function endShift(): void {
-  const detail = rescue.rescued === 0
-    ? 'nobody came home — next time, follow the amber flares'
-    : `paint at ${Math.round(airframe.integrity * 100)}%`
+/**
+ * Time, or the helicopter. Freeze the controls, show the card, let the Chief
+ * have the last word.
+ */
+function endShift(why: 'time' | 'wrecked' = 'time'): void {
+  // Idempotent, and necessary: when the clock runs out the shift has already
+  // ended itself, but a wrecked helicopter landing at base has not.
+  shift.end()
+  const paint = `airframe at ${Math.round(airframe.integrity * 100)}%`
+  const detail = why === 'wrecked'
+    ? `${paint} — you brought the wreck home`
+    : rescue.rescued === 0
+      ? 'nobody came home — next time, follow the amber flares'
+      : paint
   hud.showShiftEnd(rescue.score, rescue.rescued, detail)
-  hud.flash('SHIFT OVER')
+  hud.flash(why === 'wrecked' ? 'HELICOPTER WRITTEN OFF — SHIFT OVER' : 'SHIFT OVER')
   radio.say(announcer.shiftOver(rescue.rescued))
+}
+
+/**
+ * Another shift, without reloading the page.
+ *
+ * Reloading was the old answer, and it cost the sound: a fresh page has to wait
+ * for a gesture before a browser will let it make any, so the next shift ran in
+ * silence until the player found the mute button and pressed it twice. Resetting
+ * in place keeps the AudioContext, the speech voices and the whole mix alive
+ * across the restart, which is the only reason this is worth the extra code.
+ */
+function flyAnother(): void {
+  world.reset()
+  rescue.reset()
+  shift.restart()
+  airframe.repair()
+  tank.fill()
+  winch.stow()
+  flagged.clear()
+  soundscape?.voice.silence()
+
+  helicopter.position.set(world.rescuePad.position.x, world.rescuePad.position.y + 8, world.rescuePad.position.z)
+  helicopter.velocity.set(0, 0, 0)
+  helicopter.heading = 0
+  helicopter.condition = 1
+
+  hud.hideShiftEnd()
+  hud.flash('NEW SHIFT — GO')
+  presentAnimals()
+  radio.say(announcer.welcome())
 }
 
 /** Dress each body and flare as the animal now at that spot, and the beacon as the one you are going for. */
@@ -483,8 +565,8 @@ function placeAnimals(): void {
 }
 
 function standingStatus(landedPad: LandingPad | null): string {
-  if (shift.over) return 'SHIFT OVER — PRESS R TO FLY AGAIN'
-  if (airframe.needsRepair) return `AUTOPILOT — ${autopilot.phase.toUpperCase()} TO BASE`
+  if (shift.over) return 'SHIFT OVER — PRESS R OR START TO FLY AGAIN'
+  if (airframe.isWrecked) return 'AIRFRAME GONE — LAND AT BASE TO END THE SHIFT'
   if (landedPad) return `LANDED — ${landedPad.label.toUpperCase()}`
   if (rescue.carrying) return `CARRYING ${rescue.carrying.animal.name.toUpperCase()}`
   // Controller-only players never press a key, so tell them sound is waiting on one.
@@ -498,7 +580,7 @@ function standingStatus(landedPad: LandingPad | null): string {
  * and the on-screen markers all read from the same guidance.
  */
 function guide(): void {
-  const homeward = rescue.carrying !== null || airframe.needsRepair
+  const homeward = rescue.carrying !== null || airframe.isWrecked
   const going = homeward ? null : rescue.recommended(helicopter.position)
   const focus = rescue.carrying ?? going
   const threatened = rescue.mostThreatened()
@@ -518,7 +600,8 @@ function guide(): void {
     species: focus?.animal.species ?? '',
     siteLabel: going?.site.label ?? '',
     carrying: rescue.carrying !== null,
-    needsRepair: airframe.needsRepair,
+    wrecked: airframe.isWrecked,
+    failing: airframe.isFailing,
     onGround: helicopter.isOnGround,
     overTarget,
     range,
@@ -533,16 +616,17 @@ function guide(): void {
 
   // The heading that would put the nose on the target, minus where it is now.
   const bearing = Math.atan2(-dx, -dz) - helicopter.heading
-  hud.setCourse(Math.atan2(Math.sin(bearing), Math.cos(bearing)), range)
+  const pointingAt = homeward ? 'RESCUE BASE' : (going?.animal.name.toUpperCase() ?? 'RESCUE BASE')
+  hud.setCourse(Math.atan2(Math.sin(bearing), Math.cos(bearing)), range, guidance.target, pointingAt)
 
   // One marker per animal out there; going home, one marker for the base.
   const width = window.innerWidth
   const height = window.innerHeight
-  const insets = hudInsets(width, height)
+  const panels = hudPanels()
   if (homeward) {
     MARKER_AT.copy(world.rescuePad.position).setY(world.rescuePad.position.y + MARKER_HEIGHT)
     markers[0].emphasise(true, false)
-    markers[0].update(MARKER_AT, world.camera, width, height, `BASE  ${Math.round(range)}m`, insets)
+    markers[0].update(MARKER_AT, world.camera, width, height, `BASE  ${Math.round(range)}m`, panels)
     for (let i = 1; i < markers.length; i++) markers[i].hide()
     return
   }
@@ -552,36 +636,33 @@ function guide(): void {
     const distance = Math.hypot(w.site.x - helicopter.position.x, w.site.z - helicopter.position.z)
     MARKER_AT.set(w.site.x, w.site.y + MARKER_HEIGHT, w.site.z)
     marker.emphasise(w === going, w === threatened)
-    marker.update(MARKER_AT, world.camera, width, height, `${w.animal.name.toUpperCase()}  ${Math.round(distance)}m · ${w.credit}pt`, insets)
+    marker.update(MARKER_AT, world.camera, width, height, `${w.animal.name.toUpperCase()}  ${Math.round(distance)}m · ${w.credit}pt`, panels)
   })
 }
 
 /**
- * How much of each screen edge the HUD panels occupy, measured from the real
- * boxes, so pinned markers stay out from under them at any text size.
+ * Where the HUD panels actually are this frame, as rectangles for the markers
+ * to keep off.
+ *
+ * Measured rather than assumed, because every size in the interface is a
+ * multiple of one scale factor and the panels grow and shrink with what is in
+ * them — the objective text alone is three lines some of the time and one the
+ * rest of it.
  */
-function hudInsets(width: number, height: number) {
-  const objective = HUD_PANELS.objective.getBoundingClientRect()
-  const stack = HUD_PANELS.rightStack.getBoundingClientRect()
-  const hint = HUD_PANELS.hint.getBoundingClientRect()
-  const radio = HUD_PANELS.radio.getBoundingClientRect()
-  // The panels along the top and bottom span most of the width, so treat
-  // them as full-width bands rather than trying to route markers between them.
-  return {
-    top: Math.max(objective.bottom, stack.bottom),
-    bottom: height - Math.min(hint.top, radio.top),
-    left: 0,
-    right: 0,
-  }
-  void width
+function hudPanels(): Box[] {
+  return HUD_PANELS.map((panel) => {
+    const box = panel.getBoundingClientRect()
+    return { left: box.left, top: box.top, right: box.right, bottom: box.bottom }
+  })
 }
 
-const HUD_PANELS = {
-  objective: document.getElementById('objective')!,
-  rightStack: document.getElementById('right-stack')!,
-  hint: document.getElementById('controls-hint')!,
-  radio: document.getElementById('radio')!,
-}
+const HUD_PANELS = [
+  document.getElementById('objective')!,
+  document.getElementById('right-stack')!,
+  document.getElementById('bottom-left')!,
+  document.getElementById('radio')!,
+  document.getElementById('status')!,
+]
 
 // Reused so the render loop is not allocating a vector every frame.
 const PLACE = new THREE.Vector3()
@@ -596,6 +677,12 @@ const PICKUP_REACH = 13
 const WINCH_REACH = 11
 /** Fire this close to an animal is worth spending water on. */
 const WATER_WORTH_IT = 90
+/**
+ * How often dragging through a canopy throws another shower of debris. Short
+ * enough that a long scrape is a continuous spray, long enough that it is not
+ * one burst per frame.
+ */
+const debrisBurst = new Cooldown(0.18)
 /** Trees are re-checked for catching alight at this interval, not every frame. */
 const BURN_STEP = 0.4
 const burnCheck = new Cooldown(BURN_STEP)

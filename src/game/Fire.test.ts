@@ -163,91 +163,152 @@ describe('Fire.douse', () => {
   })
 })
 
-describe('Fire.frontBetween', () => {
-  const from = { x: -316, z: 190 }
-  const to = { x: 195, z: -203 }
-  const fire = Fire.frontBetween(from, to)
+const FIELD = 420
+const WEST = { x: -1, z: 0 }
+/** Where the base sits: low in the -x half, a long way downwind of the front. */
+const base = { x: -316, z: 190 }
+const sweeping = () => Fire.sweepingIn(WEST, FIELD)
 
-  it('puts the fire between the two places, not on top of either', () => {
-    expect(fire.intensityAt(from.x, from.z)).toBe(0)
-    expect(fire.intensityAt(to.x, to.z)).toBe(0)
-    expect(fire.distanceToNearest(from.x, from.z)).toBeGreaterThan(60)
-    expect(fire.distanceToNearest(to.x, to.z)).toBeGreaterThan(60)
+describe('Fire.sweepingIn', () => {
+  const fire = sweeping()
+
+  it('starts burning along the upwind edge and nowhere near the base', () => {
+    expect(fire.intensityAt(FIELD - 40, 0)).toBeGreaterThan(0)
+    expect(fire.intensityAt(base.x, base.z)).toBe(0)
+    expect(fire.distanceToNearest(base.x, base.z)).toBeGreaterThan(400)
   })
 
-  it('actually blocks the straight line between them', () => {
-    let burningSteps = 0
-    for (let t = 0; t <= 1; t += 0.01) {
-      const x = from.x + (to.x - from.x) * t
-      const z = from.z + (to.z - from.z) * t
-      if (fire.intensityAt(x, z) > 0.2) burningSteps++
+  it('spans the whole width, so there is no slipping round the end of it', () => {
+    for (let z = -FIELD + 60; z <= FIELD - 60; z += 20) {
+      // Somewhere along the upwind edge at this z, something is alight.
+      let hottest = 0
+      for (let x = FIELD - 120; x <= FIELD - 10; x += 6) hottest = Math.max(hottest, fire.intensityAt(x, z))
+      expect(hottest, `z=${z}`).toBeGreaterThan(0)
     }
-    expect(burningSteps).toBeGreaterThan(5)
   })
 
-  it('leaves a way round: the front does not span the whole map', () => {
-    const clearFarToOneSide = fire.patches.every((patch) => Math.hypot(patch.x - 380, patch.z - 380) > patch.radius)
-    expect(clearFarToOneSide).toBe(true)
+  it('puts the whole rest of the map in its path', () => {
+    expect(fire.aheadOfFront(base.x, base.z)).toBeGreaterThan(400)
+    expect(fire.aheadOfFront(0, 0)).toBeGreaterThan(0)
+    // Behind the leading edge is not in the path, however unburnt it is.
+    expect(fire.aheadOfFront(FIELD, 0)).toBeLessThan(0)
+  })
+
+  it('keeps every patch on the map', () => {
+    for (const patch of fire.patches) {
+      expect(Math.abs(patch.x)).toBeLessThanOrEqual(FIELD)
+      expect(Math.abs(patch.z)).toBeLessThanOrEqual(FIELD)
+    }
+  })
+
+  it('gives every patch its own identity, so the drawing can follow one', () => {
+    const ids = new Set(fire.patches.map((patch) => patch.id))
+    expect(ids.size).toBe(fire.patches.length)
   })
 
   it('is the same fire every time, so the map is learnable', () => {
-    const again = Fire.frontBetween(from, to)
-    expect(again.patches).toEqual(fire.patches)
+    expect(sweeping().patches).toEqual(fire.patches)
   })
 })
 
 describe('Fire.advance', () => {
-  const from = { x: -316, z: 190 }
-  const to = { x: 195, z: -203 }
   const burnFor = (seconds: number) => {
-    const fire = Fire.frontBetween(from, to)
+    const fire = sweeping()
     for (let i = 0; i < seconds * 10; i++) fire.advance(0.1)
     return fire
   }
 
-  it('widens every patch over time, up to a limit', () => {
-    const fresh = Fire.frontBetween(from, to)
-    const later = burnFor(60)
+  it('widens the patches it already has, up to a limit', () => {
+    const fresh = sweeping()
+    const later = sweeping()
+    for (let i = 0; i < 300; i++) later.advance(0.1)
     for (let i = 0; i < fresh.patches.length; i++) {
       expect(later.patches[i].radius).toBeGreaterThan(fresh.patches[i].radius)
     }
-    const much = burnFor(600)
-    for (const patch of much.patches) expect(patch.radius).toBeLessThanOrEqual(MAX_PATCHES > 0 ? 64 : 0)
+    for (const patch of burnFor(600).patches) expect(patch.radius).toBeLessThanOrEqual(64)
   })
 
-  it('catches new patches as it burns, but never more than the drawing can show', () => {
-    const fresh = Fire.frontBetween(from, to)
-    const later = burnFor(120)
-    expect(later.patches.length).toBeGreaterThan(fresh.patches.length)
-    const much = burnFor(3000)
-    expect(much.patches.length).toBeLessThanOrEqual(MAX_PATCHES)
-    expect(much.patches.length).toBe(MAX_PATCHES)
+  it('never shows the drawing more patches than it allocated for', () => {
+    for (const seconds of [60, 120, 300, 3000]) {
+      expect(burnFor(seconds).patches.length, `${seconds}s`).toBeLessThanOrEqual(MAX_PATCHES)
+    }
   })
 
-  it('creeps downwind, toward the far end of the run', () => {
-    const fresh = Fire.frontBetween(from, to)
-    const later = burnFor(240)
-    // Distance from the pickup end to the nearest flame should shrink.
-    expect(later.distanceToNearest(to.x, to.z)).toBeLessThan(fresh.distanceToNearest(to.x, to.z))
-    // And the fire should never have reached back over the base.
-    expect(later.intensityAt(from.x, from.z)).toBe(0)
+  it('travels: inside one shift the front crosses a good part of the map', () => {
+    const fresh = sweeping()
+    const shift = burnFor(300)
+    const crossed = fresh.aheadOfFront(base.x, base.z) - shift.aheadOfFront(base.x, base.z)
+    expect(crossed).toBeGreaterThan(300)
+    // And it has not swallowed the base: there is still somewhere to land.
+    expect(shift.aheadOfFront(base.x, base.z)).toBeGreaterThan(0)
+    expect(shift.intensityAt(base.x, base.z)).toBe(0)
+  })
+
+  it('goes out behind itself, so the burn is a front and not a growing stain', () => {
+    const where = { x: FIELD - 40, z: 0 }
+    expect(sweeping().intensityAt(where.x, where.z)).toBeGreaterThan(0)
+    // The ground it started on is dead long before the shift is over. The
+    // black land and the dead trees stay; they belong to the terrain and the
+    // forest, not to the patch.
+    expect(burnFor(150).intensityAt(where.x, where.z)).toBe(0)
+  })
+
+  it('creeps rather than leaping: the front never jumps further than a patch can throw', () => {
+    const fire = sweeping()
+    let previous = fire.aheadOfFront(base.x, base.z)
+    for (let i = 0; i < 3000; i++) {
+      fire.advance(0.1)
+      const now = fire.aheadOfFront(base.x, base.z)
+      expect(previous - now).toBeLessThan(120)
+      previous = now
+    }
+  })
+
+
+  it('advances as a line, not a tendril', () => {
+    // The first try let any leading patch throw embers, so one lucky patch
+    // spawned a child that immediately became the new leader and spawned
+    // again: the fire crossed the map as a single finger with the rest of the
+    // front still sitting on the edge. Embers now go to whichever leading
+    // patch has thrown fewest, so the whole width steps forward together.
+    const fire = sweeping()
+    for (let i = 0; i < 1500; i++) fire.advance(0.1)
+
+    let covered = 0
+    let lanes = 0
+    for (let z = -FIELD + 20; z <= FIELD - 20; z += 20) {
+      lanes++
+      for (let x = -FIELD; x <= FIELD; x += 6) {
+        if (fire.intensityAt(x, z) > 0.05) { covered++; break }
+      }
+    }
+    expect(covered / lanes).toBeGreaterThan(0.5)
   })
 
   it('burns the same way every time', () => {
-    const a = burnFor(200)
-    const b = burnFor(200)
-    expect(a.patches).toEqual(b.patches)
+    expect(burnFor(200).patches).toEqual(burnFor(200).patches)
+  })
+})
+
+describe('Fire.relight', () => {
+  it('puts the front back on the edge it started from', () => {
+    const fire = sweeping()
+    const opening = sweeping().patches
+    for (let i = 0; i < 2000; i++) fire.advance(0.1)
+    expect(fire.patches).not.toEqual(opening)
+
+    fire.relight()
+    expect(fire.patches).toEqual(opening)
+    expect(fire.age).toBe(0)
   })
 
-  it('does not leap: each new patch touches the fire it caught from', () => {
-    const fire = burnFor(300)
-    const original = Fire.frontBetween(from, to).patches.length
-    for (let i = original; i < fire.patches.length; i++) {
-      const patch = fire.patches[i]
-      const touching = fire.patches.some((other, j) =>
-        j !== i && Math.hypot(other.x - patch.x, other.z - patch.z) < other.radius + patch.radius,
-      )
-      expect(touching).toBe(true)
-    }
+  it('burns the second shift exactly like the first, so a map stays learnable', () => {
+    const once = sweeping()
+    for (let i = 0; i < 1200; i++) once.advance(0.1)
+    const after = once.patches.map((patch) => ({ x: patch.x, z: patch.z, radius: patch.radius, age: patch.age }))
+
+    once.relight()
+    for (let i = 0; i < 1200; i++) once.advance(0.1)
+    expect(once.patches.map((patch) => ({ x: patch.x, z: patch.z, radius: patch.radius, age: patch.age }))).toEqual(after)
   })
 })

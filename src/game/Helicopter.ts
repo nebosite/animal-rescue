@@ -30,6 +30,21 @@ export class Helicopter {
    */
   shakePitch = 0
   shakeRoll = 0
+  /**
+   * Judder from a battered machine, radians, kept apart from both the flown
+   * attitude and the air for the same reason `shakePitch` is: rough air
+   * *assigns* the shake angles every frame it is felt, so a damage wobble
+   * folded into those would vanish the moment you crossed a thermal.
+   */
+  rattlePitch = 0
+  rattleRoll = 0
+
+  /**
+   * How much helicopter is left, 0..1, as `Airframe` sees it. A wreck still
+   * flies — that is the point, nothing is ever taken away from the pilot — but
+   * it is slower off the mark, slower to climb, and it never stops shaking.
+   */
+  condition = 1
 
   /** True on the one update in which the skids touched down. */
   justLanded = false
@@ -46,6 +61,7 @@ export class Helicopter {
   boost = 1
 
   private yawRate = 0
+  private rattlePhase = 0
   /** The stick-driven part of the roll, before the cosmetic turn-bank is added. */
   private leanRoll = 0
   private wasOnGround = false
@@ -101,6 +117,7 @@ export class Helicopter {
     this.shakePitch = approach(this.shakePitch, 0, SHAKE_SETTLES, dt)
     this.shakeRoll = approach(this.shakeRoll, 0, SHAKE_SETTLES, dt)
 
+    this.rattle(dt)
     this.turn(input.yaw, dt)
     this.lean(input, onGround, dt)
     this.applyThrust(onGround, dt)
@@ -129,6 +146,36 @@ export class Helicopter {
     // Branches snatch downward; they never throw you upward.
     if (this.velocity.y > 0) this.velocity.y *= drag
     this.justStruck = true
+  }
+
+  /**
+   * What damage feels like through the airframe: a shake that is always there
+   * and gets worse as the machine does. Squared, so a scuff is nothing and a
+   * wreck is unmistakable — a linear ramp made a lightly scratched helicopter
+   * feel broken, which spent the signal long before it was needed.
+   */
+  private rattle(dt: number): void {
+    const hurt = 1 - clamp(this.condition, 0, 1)
+    if (hurt <= 0) {
+      this.rattlePitch = 0
+      this.rattleRoll = 0
+      return
+    }
+    this.rattlePhase += dt
+    // Two rates that do not divide into each other, so the wobble never falls
+    // into a rhythm and never reads as something the pilot did.
+    const depth = MAX_RATTLE * hurt * hurt
+    this.rattlePitch = depth * Math.sin(this.rattlePhase * 13.7)
+    this.rattleRoll = depth * Math.sin(this.rattlePhase * 9.1 + 1.7)
+  }
+
+  /**
+   * Thrust and climb still available. A wreck keeps better than half of it:
+   * the pilot always has enough to get home and land, which is what makes
+   * "fly it home or press on" a decision rather than a sentence.
+   */
+  private get power(): number {
+    return WRECKED_POWER + (1 - WRECKED_POWER) * clamp(this.condition, 0, 1)
   }
 
   private turn(yawInput: number, dt: number): void {
@@ -165,8 +212,9 @@ export class Helicopter {
 
     // Thrust follows the actual lean, not the raw input — that is the lag that
     // makes it feel like a machine rather than a cursor.
-    const forward = (this.pitch / MAX_PITCH) * THRUST_ACCEL * this.boost
-    const sideways = (this.leanRoll / MAX_ROLL) * THRUST_ACCEL * this.boost
+    const pull = THRUST_ACCEL * this.boost * this.power
+    const forward = (this.pitch / MAX_PITCH) * pull
+    const sideways = (this.leanRoll / MAX_ROLL) * pull
 
     const sinH = Math.sin(this.heading)
     const cosH = Math.cos(this.heading)
@@ -185,7 +233,7 @@ export class Helicopter {
   }
 
   private applyCollective(collective: number, dt: number): void {
-    this.velocity.y += collective * COLLECTIVE_ACCEL * this.boost * dt
+    this.velocity.y += collective * COLLECTIVE_ACCEL * this.boost * this.power * dt
     this.velocity.y *= Math.exp(-VERTICAL_DRAG * dt)
   }
 
@@ -285,3 +333,11 @@ const SHAKE_PER_FORCE = 0.011
 const MAX_SHAKE = 0.44
 /** How fast the rocking dies away once the air smooths out. */
 const SHAKE_SETTLES = 3.5
+/** How far a completely wrecked machine judders, radians — about seven degrees. */
+const MAX_RATTLE = 0.12
+/**
+ * Thrust and climb left in a wreck. High enough that a ruined helicopter can
+ * always still be flown home and landed: the damage is a worsening handicap,
+ * never a loss of control.
+ */
+const WRECKED_POWER = 0.55

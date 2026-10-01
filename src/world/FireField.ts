@@ -2,65 +2,44 @@ import * as THREE from 'three'
 import { MAX_PATCHES, type Fire } from '../game/Fire'
 import type { Terrain } from '../game/Terrain'
 
-/** One flame's place within its patch, as a fraction of the radius. */
-interface Ember {
-  angle: number
-  spread: number
-  scale: number
-  phase: number
-  drift: number
-  /** Ground under it, refreshed as the patch grows. */
-  ground: number
-  seededAtRadius: number
-}
-
 /**
- * The fire you can see: flames licking up off the ground, a column of smoke
- * over each patch, and a few lights so the fire actually lights the hills
- * around it.
+ * The smoke over the fire, and the light it throws on the hills.
  *
- * The fire spreads, so this cannot be built once and left. Every slot is
- * allocated up front for the most patches the fire can ever have; each frame
- * the live patches' flames are placed from their fractional offsets times the
- * patch's current radius, and unused slots are scaled to nothing. Widening a
- * patch therefore widens its fire, and a new patch simply switches on.
+ * The flame itself is not here: `FireParticles` lifts it off the burning
+ * branches as sparks. This drew it with cones once, and from the air a mature
+ * front looked like a field of traffic cones — a cone is a hard silhouette and
+ * fire has none, so no amount of flicker, colour or stacking fixed it. What is
+ * left are the two things cones were never doing anyway: the column of smoke
+ * that tells you where the fire is from the far side of the map, and a handful
+ * of lights so the ground near it is actually lit by it.
+ *
+ * Every patch gets a slot from an id-keyed map with a free list. The fire
+ * retires patches from the middle of its list as the front moves on, so a slot
+ * found by a patch's position in the array belongs to a different patch the
+ * next frame, and the whole plume jumps sideways on the frame it happens.
  */
 export class FireField {
   readonly group = new THREE.Group()
 
-  private readonly flames: THREE.InstancedMesh
   private readonly smoke: THREE.InstancedMesh
   private readonly lights: THREE.PointLight[] = []
-  private readonly embers: Ember[][] = []
   private readonly puffs: Array<Array<{ angle: number; spread: number; scale: number; phase: number }>> = []
   private readonly transform = new THREE.Object3D()
+  /** Which slot each live patch is drawn in, and which slots are spare. */
+  private readonly slotOf = new Map<number, number>()
+  private readonly spare: number[] = []
+  private readonly alive = new Set<number>()
   /**
    * Where a slot goes when there is nothing for it to draw. Its own matrix,
-   * not the scratch one: sharing them meant the first flame placed each frame
-   * overwrote it, and every unused slot then drew a copy of that flame stacked
-   * on the same spot — a hundred of them, which is why the fire had a white
-   * hot-spot in it that never moved.
+   * not the scratch one: sharing them meant the first puff placed each frame
+   * overwrote it, and every unused slot then drew a copy of that puff stacked
+   * on the same spot.
    */
   private readonly hidden = new THREE.Matrix4().makeScale(0, 0, 0)
 
   constructor(private readonly fire: Fire, private readonly terrain: Terrain) {
     for (let p = 0; p < MAX_PATCHES; p++) {
-      const embers: Ember[] = []
-      for (let i = 0; i < FLAMES_PER_PATCH; i++) {
-        // sqrt keeps the scatter even rather than crowding the centre, then a
-        // bias pulls some back in so the heart of the fire looks hottest.
-        embers.push({
-          angle: random(p, i, 2) * Math.PI * 2,
-          spread: Math.sqrt(random(p, i, 1)) ** 1.35,
-          scale: 0.6 + random(p, i, 3) * 1.1,
-          phase: random(p, i, 4) * Math.PI * 2,
-          drift: 0.6 + random(p, i, 5) * 0.8,
-          ground: 0,
-          seededAtRadius: -Infinity,
-        })
-      }
-      this.embers.push(embers)
-
+      this.spare.push(p)
       const puffs = []
       for (let i = 0; i < SMOKE_PER_PATCH; i++) {
         puffs.push({
@@ -73,29 +52,19 @@ export class FireField {
       this.puffs.push(puffs)
     }
 
-    this.flames = new THREE.InstancedMesh(
-      // Tall enough to show above the treeline from the air; the trees are ~15.
-      new THREE.ConeGeometry(2.6, 13, 6),
-      // Unlit and additive: fire makes its own light rather than catching any.
-      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }),
-      MAX_PATCHES * FLAMES_PER_PATCH,
-    )
-    const tint = new THREE.Color()
-    for (let index = 0; index < MAX_PATCHES * FLAMES_PER_PATCH; index++) {
-      // Cycle ember red through flame yellow so the fire is not one flat colour.
-      tint.copy(EMBER).lerp(FLAME_TIP, (index % 7) / 7)
-      this.flames.setColorAt(index, tint)
-    }
-    this.flames.frustumCulled = false
-
     this.smoke = new THREE.InstancedMesh(
       new THREE.SphereGeometry(1, 7, 5),
-      new THREE.MeshBasicMaterial({ color: SMOKE_COLOR, transparent: true, opacity: 0.22, depthWrite: false }),
+      // Thin, and plenty of it. A thick puff is a grey polygon with visible
+      // edges; the same smoke at a fraction of the opacity, piled up, is a
+      // column you can see from the far side of the map.
+      new THREE.MeshBasicMaterial({ color: SMOKE_COLOR, transparent: true, opacity: 0.075, depthWrite: false }),
       MAX_PATCHES * SMOKE_PER_PATCH,
     )
     this.smoke.frustumCulled = false
-
-    this.group.add(this.flames, this.smoke)
+    for (let index = 0; index < MAX_PATCHES * SMOKE_PER_PATCH; index++) {
+      this.smoke.setMatrixAt(index, this.hidden)
+    }
+    this.group.add(this.smoke)
 
     // Only a few patches get a light: WebGL does not want dozens.
     for (let i = 0; i < GLOW_LIGHTS; i++) {
@@ -105,72 +74,15 @@ export class FireField {
     }
   }
 
-  /** Flicker the flames, roll the smoke upward, and follow the fire's spread. */
+  /** Roll the smoke upward and follow the fire as it spreads. */
   update(elapsed: number): void {
     const patches = this.fire.patches
-    const hidden = this.hidden
+    this.allocate()
 
-    for (let p = 0; p < MAX_PATCHES; p++) {
-      const patch = patches[p]
-      const embers = this.embers[p]
-      const puffs = this.puffs[p]
-
-      if (!patch) {
-        for (let i = 0; i < FLAMES_PER_PATCH; i++) this.flames.setMatrixAt(p * FLAMES_PER_PATCH + i, hidden)
-        for (let i = 0; i < SMOKE_PER_PATCH; i++) this.smoke.setMatrixAt(p * SMOKE_PER_PATCH + i, hidden)
-        continue
-      }
-
-      // Flames live in the burning band, not the burnt-out middle: as a patch
-      // ages its fire migrates outward into a ring, leaving black behind.
-      const hollow = this.fire.hollowOf(patch)
-      embers.forEach((ember, i) => {
-        const across = hollow + ember.spread * (1 - hollow)
-        const x = patch.x + Math.cos(ember.angle) * across * patch.radius
-        const z = patch.z + Math.sin(ember.angle) * across * patch.radius
-
-        // A patch's own ring can still lie across ground an overlapping
-        // neighbour has already burnt through. Flame there reads as the whole
-        // area being alight instead of a front with dead black behind it, so
-        // put the slot away rather than draw it.
-        if (this.fire.isBurntOut(x, z)) {
-          this.flames.setMatrixAt(p * FLAMES_PER_PATCH + i, hidden)
-          return
-        }
-        // The ground under a flame only moves when the patch has grown; refresh
-        // it then rather than sampling the terrain for every flame every frame.
-        if (Math.abs(patch.radius - ember.seededAtRadius) > RESEED_AFTER) {
-          ember.ground = this.terrain.heightAt(x, z)
-          ember.seededAtRadius = patch.radius
-        }
-        // Two out-of-step waves, so the flicker never falls into a rhythm.
-        const flicker = 0.72 + 0.28 * Math.sin(elapsed * 9 * ember.drift + ember.phase)
-        const sway = Math.sin(elapsed * 2.4 + ember.phase) * 0.5
-        const height = ember.scale * flicker
-        this.transform.position.set(x + sway, ember.ground + 6.2 * height, z)
-        this.transform.scale.set(ember.scale, height, ember.scale)
-        this.transform.rotation.set(0, ember.phase, sway * 0.06)
-        this.transform.updateMatrix()
-        this.flames.setMatrixAt(p * FLAMES_PER_PATCH + i, this.transform.matrix)
-      })
-
-      const ground = this.terrain.heightAt(patch.x, patch.z)
-      puffs.forEach((puff, i) => {
-        // Each puff climbs, spreads and fades, then restarts from the flames.
-        const life = (elapsed * SMOKE_SPEED + puff.phase) % 1
-        const size = puff.scale * (0.45 + life * 1.5)
-        this.transform.position.set(
-          patch.x + Math.cos(puff.angle) * puff.spread * patch.radius + life * puff.scale * 1.6,
-          ground + 6 + life * SMOKE_RISE,
-          patch.z + Math.sin(puff.angle) * puff.spread * patch.radius + life * puff.scale * 0.8,
-        )
-        this.transform.scale.setScalar(size)
-        this.transform.rotation.set(0, life * 3, 0)
-        this.transform.updateMatrix()
-        this.smoke.setMatrixAt(p * SMOKE_PER_PATCH + i, this.transform.matrix)
-      })
+    for (const patch of patches) {
+      const slot = this.slotOf.get(patch.id)
+      if (slot !== undefined) this.drawSmoke(slot, patch, elapsed)
     }
-    this.flames.instanceMatrix.needsUpdate = true
     this.smoke.instanceMatrix.needsUpdate = true
 
     // Lights sit over the largest patches, and follow them as the fire moves.
@@ -179,29 +91,64 @@ export class FireField {
       const patch = brightest[i]
       light.visible = !!patch
       if (patch) {
-        light.position.set(patch.x, this.terrain.heightAt(patch.x, patch.z) + 12, patch.z)
+        light.position.set(patch.x, this.terrain.heightAt(patch.x, patch.z) + 14, patch.z)
         light.distance = patch.radius * 7
       }
     })
   }
+
+  /** Hand every live patch a slot, and take back the slots of dead ones. */
+  private allocate(): void {
+    this.alive.clear()
+    for (const patch of this.fire.patches) this.alive.add(patch.id)
+
+    for (const [id, slot] of this.slotOf) {
+      if (this.alive.has(id)) continue
+      this.slotOf.delete(id)
+      this.spare.push(slot)
+      for (let i = 0; i < SMOKE_PER_PATCH; i++) this.smoke.setMatrixAt(slot * SMOKE_PER_PATCH + i, this.hidden)
+    }
+
+    for (const patch of this.fire.patches) {
+      if (this.slotOf.has(patch.id)) continue
+      const slot = this.spare.pop()
+      if (slot === undefined) return
+      this.slotOf.set(patch.id, slot)
+    }
+  }
+
+  private drawSmoke(slot: number, patch: { x: number; z: number; radius: number }, elapsed: number): void {
+    const puffs = this.puffs[slot]
+    const ground = this.terrain.heightAt(patch.x, patch.z)
+    for (let i = 0; i < puffs.length; i++) {
+      const puff = puffs[i]
+      // Each puff climbs, spreads and fades, then restarts from the flames.
+      const life = (elapsed * SMOKE_SPEED + puff.phase) % 1
+      const size = puff.scale * (0.45 + life * 1.6)
+      this.transform.position.set(
+        patch.x + Math.cos(puff.angle) * puff.spread * patch.radius + life * puff.scale * 1.8,
+        ground + 8 + life * SMOKE_RISE,
+        patch.z + Math.sin(puff.angle) * puff.spread * patch.radius + life * puff.scale * 0.9,
+      )
+      this.transform.scale.setScalar(size)
+      this.transform.rotation.set(0, life * 3, 0)
+      this.transform.updateMatrix()
+      this.smoke.setMatrixAt(slot * SMOKE_PER_PATCH + i, this.transform.matrix)
+    }
+  }
 }
 
-/** Deterministic 0..1 from three integers, so the fire looks the same each run. */
+/** Deterministic 0..1 from three integers, so the smoke looks the same each run. */
 function random(a: number, b: number, c: number): number {
   let h = Math.imul(a + 1, 0x27d4eb2d) ^ Math.imul(b + 1, 0x9e3779b1) ^ Math.imul(c + 7, 0x85ebca6b)
   h = Math.imul(h ^ (h >>> 15), 0xc2b2ae35)
   return ((h ^ (h >>> 13)) >>> 0) / 4294967295
 }
 
-const FLAMES_PER_PATCH = 46
-const SMOKE_PER_PATCH = 16
+const SMOKE_PER_PATCH = 18
 const GLOW_LIGHTS = 4
 const SMOKE_SPEED = 0.09
-const SMOKE_RISE = 110
-/** Re-sample a flame's ground once its patch has grown this much. */
-const RESEED_AFTER = 3
+const SMOKE_RISE = 125
 
-const EMBER = new THREE.Color(0xd23b12)
-const FLAME_TIP = new THREE.Color(0xffc247)
-const SMOKE_COLOR = new THREE.Color(0x4a4340)
+const SMOKE_COLOR = new THREE.Color(0x3b3532)
 const GLOW_COLOR = new THREE.Color(0xff7a2a)

@@ -51,6 +51,24 @@ export class Terrain {
     return Math.hypot(dx, dz) / (2 * step)
   }
 
+  /**
+   * The lowest the land gets, searched on a grid.
+   *
+   * Sampled rather than derived: the height is several octaves of noise minus a
+   * canyon minus some levelled shelves, and there is no closed form for the
+   * bottom of that. A coarse pass is plenty — the canyon floor is wide, so the
+   * answer is stable well before the step gets small.
+   */
+  lowestPoint(step = LOWEST_STEP): number {
+    let lowest = Infinity
+    for (let x = -this.halfSize; x <= this.halfSize; x += step) {
+      for (let z = -this.halfSize; z <= this.halfSize; z += step) {
+        lowest = Math.min(lowest, this.heightAt(x, z))
+      }
+    }
+    return lowest
+  }
+
   /** True where the ground is flat enough to put the skids down safely. */
   isLandable(x: number, z: number): boolean {
     return this.slopeAt(x, z) <= LANDABLE_SLOPE
@@ -126,6 +144,14 @@ function noise(x: number, z: number): number {
 
   return a * (1 - u) * (1 - v) + b * u * (1 - v) + c * (1 - u) * v + d * u * v
 }
+
+/**
+ * How finely the land is sampled when looking for its lowest point. Fine
+ * enough that the answer is within a few centimetres of the true minimum,
+ * because the plain beyond the map is laid relative to it and anything that
+ * pokes above the ground is a brown patch in the middle of the canyon.
+ */
+const LOWEST_STEP = 3
 
 /** Slope the skids can cope with. Above this, a landing is a topple. */
 export const LANDABLE_SLOPE = 0.32

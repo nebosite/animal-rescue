@@ -99,7 +99,7 @@ describe('TreeCover', () => {
 
   it('scorching a spreading fire is cheap enough to do every frame', () => {
     const cover = new TreeCover(terrain)
-    const fire = Fire.frontBetween({ x: -316, z: 190 }, { x: 195, z: -203 })
+    const fire = Fire.sweepingIn({ x: -1, z: 0 }, 420)
     for (let i = 0; i < 1200; i++) fire.advance(0.1)
 
     const started = performance.now()

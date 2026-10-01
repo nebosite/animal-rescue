@@ -36,7 +36,7 @@ describe('Announcer', () => {
 
   it('has the Chief cover the fire, the grounding and the repair', () => {
     const announcer = new Announcer()
-    for (const line of [announcer.scorched(), announcer.grounded(), announcer.repaired()]) {
+    for (const line of [announcer.scorched(), announcer.failing(), announcer.wrecked()]) {
       expect(line.speaker).toBe(CHIEF.name)
       expect(line.text.length).toBeGreaterThan(0)
       expect(line.voice).toBe(CHIEF.voice)

@@ -29,6 +29,8 @@ export class Hud {
     private readonly objectiveHint?: HTMLElement,
   ) {}
 
+  private renderedCourseLabel = ''
+  private renderedCourseTarget = ''
   private renderedClock = ''
   private renderedLoads = -1
   private renderedSeat: boolean | null = null
@@ -81,6 +83,12 @@ export class Hud {
     overlay.hidden = false
   }
 
+  /** Put the card away, because another shift is starting in place. */
+  hideShiftEnd(): void {
+    const overlay = document.getElementById('shift-end')
+    if (overlay) overlay.hidden = true
+  }
+
   /** Say what the player should be doing, and which beacon it concerns. */
   setObjective(task: string, hint: string, target: string): void {
     if (this.taskElement && task !== this.renderedTask) {
@@ -110,21 +118,43 @@ export class Hud {
   }
 
   /**
-   * Point the compass at wherever the pilot should be heading and show the
-   * range. On a map this size the target is usually past the fog, so without
-   * this you are searching rather than flying.
+   * Swing the needle to wherever the pilot should be heading, and say what is
+   * over there and how far. On a map this size the target is usually past the
+   * fog, so without this you are searching rather than flying.
+   *
+   * The name matters as much as the angle. A bare rotating arrow answers
+   * neither of the questions a player actually has — which way, and toward
+   * what — because nothing on it says which end is the nose or what it has
+   * picked out. The dial has a fixed mark for the nose and this has a label.
    *
    * `relativeBearing` is in radians, positive to the left of the nose.
    */
-  setCourse(relativeBearing: number, range: number): void {
+  setCourse(relativeBearing: number, range: number, target: 'pickup' | 'base', label: string): void {
     if (this.compassElement) {
-      // CSS rotation runs clockwise, so a target to the left is negative.
-      this.compassElement.style.transform = `rotate(${(-relativeBearing * 180) / Math.PI}deg)`
+      // Rotation runs clockwise, so a target to the left of the nose is negative.
+      const degrees = (-relativeBearing * 180) / Math.PI
+      // Set as an SVG attribute, not a CSS transform: this rotates about the
+      // user-space origin, which is the middle of the dial. A CSS transform
+      // would pivot about the needle's own bounding box instead, swinging it
+      // round its waist rather than round the helicopter.
+      this.compassElement.setAttribute('transform', `rotate(${degrees.toFixed(1)})`)
     }
+
     const rounded = Math.round(range)
     if (this.rangeElement && rounded !== this.renderedRange) {
       this.renderedRange = rounded
       this.rangeElement.textContent = `${rounded} m`
+    }
+
+    if (label !== this.renderedCourseLabel) {
+      this.renderedCourseLabel = label
+      const name = document.getElementById('course-target')
+      if (name) name.textContent = label
+    }
+    if (target !== this.renderedCourseTarget) {
+      this.renderedCourseTarget = target
+      const course = document.getElementById('course')
+      if (course) course.dataset.target = target
     }
   }
 

@@ -54,7 +54,13 @@ export class RadioPanel {
 }
 
 const MAX_QUEUED = 2
-const BASE_SECONDS = 1.6
-const SECONDS_PER_CHAR = 0.045
-const MIN_SECONDS = 2.4
-const MAX_SECONDS = 4.5
+/**
+ * How long a line stays up. Sized for a line being *read aloud* rather than
+ * blipped, which takes appreciably longer — a panel that clears while the
+ * voice is still talking reads as the subtitle being out of step with the
+ * radio, and the next line then cuts the sentence off.
+ */
+const BASE_SECONDS = 1.8
+const SECONDS_PER_CHAR = 0.058
+const MIN_SECONDS = 2.6
+const MAX_SECONDS = 6

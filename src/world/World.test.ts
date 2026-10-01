@@ -31,9 +31,14 @@ describe('World', () => {
     const patch = world.fire.patches[0]
     const before = brightness(groundColourAt(world, patch.x, patch.z))
 
-    // Let the front burn itself hollow, the way it does over a real shift.
-    for (let i = 0; i < 90 * 10; i++) world.fire.advance(1 / 10)
-    world.burnTrees(0.4)
+    // Driven the way the game drives it: a little more fire, another sweep,
+    // over and over. Advancing in one jump and then sweeping once is not the
+    // same thing at all — the fire retires a patch that has eaten its fuel, so
+    // by the end of that jump there is nothing burning here to scorch from.
+    for (let i = 0; i < 90 * 10; i++) {
+      world.fire.advance(1 / 10)
+      if (i % 4 === 0) world.burnTrees(0.4)
+    }
 
     const after = brightness(groundColourAt(world, patch.x, patch.z))
     expect(after).toBeLessThan(before * 0.5)

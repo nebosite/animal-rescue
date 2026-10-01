@@ -4,12 +4,13 @@ import { SiteFinder, type SiteKind } from './SiteFinder'
 import { Terrain } from './Terrain'
 import { TreeCover } from './TreeCover'
 
+/** The fire comes in off the +x edge and blows west, as it does in the game. */
+const WEST = { x: -1, z: 0 }
 const terrain = new Terrain(420)
 const base = { x: -316, z: 190 }
-const pickupEnd = { x: 195, z: -203 }
 terrain.levelAt(base.x, base.z, 17)
 const trees = new TreeCover(terrain, [{ x: base.x, z: base.z, radius: 40 }])
-const fire = Fire.frontBetween(base, pickupEnd)
+const fire = Fire.sweepingIn(WEST, 420)
 const finder = new SiteFinder(terrain, trees, base)
 const kinds: SiteKind[] = ['clearing', 'hilltop', 'canyon', 'ridge', 'fireline']
 
@@ -83,9 +84,62 @@ describe('SiteFinder', () => {
   })
 
   it('still finds a refuge once the fire has grown for a while', () => {
-    const grown = Fire.frontBetween(base, pickupEnd)
+    const grown = Fire.sweepingIn(WEST, 420)
     for (let i = 0; i < 1800; i++) grown.advance(0.1)
     const start = finder.find('clearing', grown, 1)!
     expect(finder.fleeFrom(start, grown, 2)).not.toBeNull()
+  })
+})
+
+describe('SiteFinder.findAhead', () => {
+  it('puts an animal in the path of the fire, at about the distance asked for', () => {
+    for (const wanted of [55, 150, 300]) {
+      const site = finder.findAhead(fire, wanted, 1)
+      expect(site, `${wanted}m`).not.toBeNull()
+      const gap = fire.distanceToNearest(site!.x, site!.z)
+      // Downwind of the leading edge: the front really is coming for it.
+      expect(fire.aheadOfFront(site!.x, site!.z), `${wanted}m`).toBeGreaterThan(0)
+      expect(Math.abs(gap - wanted), `${wanted}m wanted, got ${gap}`).toBeLessThan(60)
+    }
+  })
+
+  it('never stands an animal in the flames, or close enough to be in them', () => {
+    for (let seed = 0; seed < 8; seed++) {
+      for (const wanted of [20, 55, 150, 300]) {
+        const site = finder.findAhead(fire, wanted, seed)!
+        expect(fire.intensityAt(site.x, site.z)).toBe(0)
+        expect(fire.distanceToNearest(site.x, site.z)).toBeGreaterThanOrEqual(34)
+      }
+    }
+  })
+
+  it('gives ground the skids can actually go down on', () => {
+    for (let seed = 0; seed < 6; seed++) {
+      const site = finder.findAhead(fire, 150, seed)!
+      expect(terrain.isLandable(site.x, site.z)).toBe(true)
+      expect(trees.nearestTrunk(site.x, site.z, 32)).toBeGreaterThanOrEqual(7.5)
+      expect(terrain.heightAt(site.x, site.z)).toBeCloseTo(site.y, 5)
+    }
+  })
+
+  it('names the spot after whatever the terrain there happens to be', () => {
+    const site = finder.findAhead(fire, 150, 1)!
+    expect(site.label.length).toBeGreaterThan(0)
+    expect(site.difficulty).toBeGreaterThanOrEqual(1)
+  })
+
+  it('spaces animals out, so three of them are three trips', () => {
+    const first = finder.findAhead(fire, 150, 1)!
+    const second = finder.findAhead(fire, 150, 1, [first])!
+    expect(Math.hypot(first.x - second.x, first.z - second.z)).toBeGreaterThanOrEqual(70)
+  })
+
+  it('still finds somewhere once the front has crossed most of the map', () => {
+    // The band of ground that qualifies travels with the fire and shrinks, so
+    // late in a shift this is the request most likely to come back empty.
+    const grown = Fire.sweepingIn(WEST, 420)
+    for (let i = 0; i < 2400; i++) grown.advance(0.1)
+    expect(finder.findAhead(grown, 55, 3)).not.toBeNull()
+    expect(finder.findAhead(grown, 150, 4)).not.toBeNull()
   })
 })

@@ -107,6 +107,13 @@ export class TerrainMesh {
     if (changed) this.mesh.geometry.attributes.color.needsUpdate = true
     return changed
   }
+
+  /** Green again: the land as it was before any of it burned. */
+  unscorch(): void {
+    this.colors.set(this.pristine)
+    this.charred.fill(0)
+    this.mesh.geometry.attributes.color.needsUpdate = true
+  }
 }
 
 /** Pick a ground colour: canyon rock, grass, or bare stone where it is steep or high. */

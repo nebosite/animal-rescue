@@ -11,11 +11,12 @@
     <style>
       /*
        * Every size in the HUD is a base size times --ui, so the whole interface
-       * can be dialled up or down in one place. It is 3 because the first
-       * play-test found the text small for a big, playful game.
+       * can be dialled up or down in one place. It went to 3 when the first
+       * play-test found the text small for a big, playful game, and then back
+       * by 30% when the finished HUD turned out to be eating the screen.
        */
       :root {
-        --ui: 3;
+        --ui: 2.1;
         --font: 'Fredoka', 'Trebuchet MS', 'Comic Sans MS', ui-rounded, system-ui, sans-serif;
         --panel: rgba(20, 27, 41, 0.8);
         --ink: #eaf1fb;
@@ -47,32 +48,49 @@
         display: flex; flex-direction: column; align-items: flex-end; gap: calc(3px * var(--ui));
         pointer-events: none; user-select: none;
       }
-      #score-row { display: flex; gap: calc(3px * var(--ui)); }
+      #score-row { display: flex; align-items: stretch; gap: calc(3px * var(--ui)); }
       #score, #clock {
-        font-size: calc(14px * var(--ui)); font-weight: 700; line-height: 1; color: var(--ink);
-        background: var(--panel); padding: calc(3px * var(--ui)) calc(5px * var(--ui)); border-radius: calc(3px * var(--ui));
+        font-weight: 700; line-height: 1; color: var(--ink);
+        background: var(--panel); border-radius: calc(3px * var(--ui));
         font-variant-numeric: tabular-nums;
+      }
+      #score { font-size: calc(14px * var(--ui)); padding: calc(3px * var(--ui)) calc(5px * var(--ui)); align-self: center; }
+      /*
+       * Twice the size of every other number. The clock is the only one on the
+       * screen that is always running out, and it has to be readable from the
+       * corner of your eye while you are busy looking at a landing.
+       */
+      #clock {
+        font-size: calc(28px * var(--ui)); padding: calc(2px * var(--ui)) calc(6px * var(--ui));
+        display: flex; align-items: center;
       }
       #clock[data-closing="true"] { color: var(--orange); animation: tick 1s steps(2, end) infinite; }
       @keyframes tick { 50% { opacity: 0.55; } }
-      #audio-controls {
-        display: flex; align-items: center; gap: calc(3px * var(--ui));
-        background: var(--panel); padding: calc(2px * var(--ui)) calc(4px * var(--ui)); border-radius: calc(3px * var(--ui));
-        pointer-events: auto;
-      }
-      #mute {
-        font: calc(16px * var(--ui)) / 1 system-ui, sans-serif; width: calc(32px * var(--ui)); height: calc(28px * var(--ui));
-        background: transparent; border: 0; border-radius: calc(2px * var(--ui)); color: var(--ink); cursor: pointer;
-      }
-      #mute:hover { background: rgba(255, 255, 255, 0.08); }
-      #mute.is-muted { opacity: 0.6; }
-      #volume { width: calc(96px * var(--ui)); height: calc(8px * var(--ui)); accent-color: var(--green); cursor: pointer; }
+
+      /*
+       * The course indicator: a dial with a fixed mark at the top for the way
+       * the nose is pointing, a needle swinging round to where you should be
+       * going, and the name of the thing it is pointing at. The old version was
+       * a bare rotating triangle, and the two questions a player actually has —
+       * which way, and toward what — were both unanswerable from it.
+       */
       #course {
         display: flex; align-items: center; gap: calc(4px * var(--ui));
         background: var(--panel); padding: calc(3px * var(--ui)) calc(5px * var(--ui)); border-radius: calc(3px * var(--ui));
-        font-size: calc(13px * var(--ui)); font-weight: 600; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums;
+        line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums;
       }
-      #compass { font-size: calc(17px * var(--ui)); line-height: 1; color: var(--green); transition: transform 90ms linear; }
+      #compass { width: calc(30px * var(--ui)); height: calc(30px * var(--ui)); display: block; flex: none; }
+      #compass .dial { fill: rgba(8, 14, 24, 0.55); stroke: rgba(143, 162, 196, 0.5); stroke-width: 3; }
+      #compass .nose { fill: var(--ink-dim); }
+      #compass .hub { fill: rgba(143, 162, 196, 0.85); }
+      #compass .needle { fill: var(--green); }
+      #compass-needle { transition: transform 90ms linear; }
+      #course[data-target="pickup"] .needle { fill: #ffc14d; }
+      #course[data-target="base"] .needle { fill: #6fa8ff; }
+      #course-text { display: flex; flex-direction: column; gap: calc(1.5px * var(--ui)); }
+      #course-target { font-size: calc(12px * var(--ui)); font-weight: 700; letter-spacing: 0.04em; white-space: nowrap; }
+      #range { font-size: calc(11px * var(--ui)); color: var(--ink-dim); }
+
       #integrity {
         width: calc(148px * var(--ui)); background: var(--panel);
         padding: calc(3px * var(--ui)) calc(4px * var(--ui)) calc(4px * var(--ui)); border-radius: calc(3px * var(--ui));
@@ -120,12 +138,29 @@
       #radio-speaker { font-weight: 700; letter-spacing: 0.04em; margin-right: calc(4px * var(--ui)); color: var(--amber); }
       #radio[data-speaker="chief"] #radio-speaker { color: #ff9f6b; }
 
-      /* ---- bottom left: keys ---- */
+      /* ---- bottom left: the mix, and the keys ---- */
+      #bottom-left {
+        position: fixed; left: calc(6px * var(--ui)); bottom: calc(5px * var(--ui));
+        display: flex; flex-direction: column; align-items: flex-start; gap: calc(3px * var(--ui));
+        pointer-events: none;
+      }
+      #audio-controls {
+        display: flex; align-items: center; gap: calc(3px * var(--ui));
+        background: var(--panel); padding: calc(2px * var(--ui)) calc(4px * var(--ui)); border-radius: calc(3px * var(--ui));
+        pointer-events: auto;
+      }
+      #mute {
+        font: calc(16px * var(--ui)) / 1 system-ui, sans-serif; width: calc(32px * var(--ui)); height: calc(28px * var(--ui));
+        background: transparent; border: 0; border-radius: calc(2px * var(--ui)); color: var(--ink); cursor: pointer;
+      }
+      #mute:hover { background: rgba(255, 255, 255, 0.08); }
+      #mute.is-muted { opacity: 0.6; }
+      #volume { width: calc(80px * var(--ui)); height: calc(8px * var(--ui)); accent-color: var(--green); cursor: pointer; }
       #controls-hint {
-        position: fixed; left: calc(6px * var(--ui)); bottom: calc(5px * var(--ui)); max-width: 20vw;
+        max-width: 24vw;
         font-size: calc(12px * var(--ui)); line-height: 1.4; color: var(--ink-dim);
         background: var(--panel); padding: calc(2px * var(--ui)) calc(4px * var(--ui)); border-radius: calc(3px * var(--ui));
-        pointer-events: none; user-select: none;
+        user-select: none;
       }
       #controls-hint b { color: var(--ink); }
       #controls-hint[data-device="keyboard"] .for-gamepad { display: none; }
@@ -172,11 +207,15 @@
 
     <div id="right-stack">
       <div id="score-row"><div id="score">SCORE 0</div><div id="clock" data-closing="false">5:00</div></div>
-      <div id="audio-controls">
-        <button id="mute" type="button" aria-label="Mute">🔊</button>
-        <input id="volume" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume" />
+      <div id="course" data-target="pickup">
+        <svg id="compass" viewBox="-50 -50 100 100" aria-hidden="true">
+          <circle class="dial" r="44" />
+          <polygon class="nose" points="0,-48 -7,-36 7,-36" />
+          <g id="compass-needle"><polygon class="needle" points="0,-32 -11,14 0,4 11,14" /></g>
+          <circle class="hub" r="4" />
+        </svg>
+        <span id="course-text"><span id="course-target">&mdash;</span><span id="range">0 m</span></span>
       </div>
-      <div id="course"><span id="compass">▲</span><span id="range">0 m</span></div>
       <div id="integrity" data-state="fine">AIRFRAME<div id="integrity-track"><div id="integrity-bar"></div></div></div>
       <div id="crew" data-seat="ferret">COPILOT <span id="crew-who">BRAM</span>
         <div class="gauge-row"><span class="gauge-label">WINCH</span><span class="gauge-track"><div id="winch-bar"></div></span><span class="gauge-count" aria-hidden="true">&nbsp;</span></div>
@@ -197,15 +236,21 @@
     <div id="status"></div>
     <div id="radio" aria-live="polite"><span id="radio-speaker"></span><span id="radio-text"></span></div>
 
-    <div id="controls-hint" data-device="keyboard">
-      <span class="for-keyboard">
-        <b>W S</b> climb / descend &nbsp;·&nbsp; <b>A D</b> turn &nbsp;·&nbsp; <b>↑ ↓</b> nose &nbsp;·&nbsp; <b>← →</b> slide<br />
-        <span style="opacity:.75">Player 2 &nbsp;<b>Space</b> winch &nbsp;·&nbsp; <b>F</b> water &nbsp;·&nbsp; or a 2nd controller</span>
-      </span>
-      <span class="for-gamepad">
-        <b>Left stick</b> climb / turn &nbsp;·&nbsp; <b>Right stick</b> nose / slide &nbsp;·&nbsp; <b>RT LT</b> climb / descend<br />
-        <span style="opacity:.75">Player 2 (2nd pad) &nbsp;<b>A</b> winch &nbsp;·&nbsp; <b>B</b> water</span>
-      </span>
+    <div id="bottom-left">
+      <div id="audio-controls">
+        <button id="mute" type="button" aria-label="Mute">🔊</button>
+        <input id="volume" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume" />
+      </div>
+      <div id="controls-hint" data-device="keyboard">
+        <span class="for-keyboard">
+          <b>W S</b> climb / descend &nbsp;·&nbsp; <b>A D</b> turn &nbsp;·&nbsp; <b>↑ ↓</b> nose &nbsp;·&nbsp; <b>← →</b> slide<br />
+          <span style="opacity:.75">Player 2 &nbsp;<b>Space</b> winch &nbsp;·&nbsp; <b>F</b> water &nbsp;·&nbsp; or a 2nd controller</span>
+        </span>
+        <span class="for-gamepad">
+          <b>Left stick</b> climb / turn &nbsp;·&nbsp; <b>Right stick</b> nose / slide &nbsp;·&nbsp; <b>RT LT</b> climb / descend<br />
+          <span style="opacity:.75">Player 2 (2nd pad) &nbsp;<b>A</b> winch &nbsp;·&nbsp; <b>B</b> water</span>
+        </span>
+      </div>
     </div>
 
     <div id="shift-end" hidden>
@@ -213,7 +258,7 @@
         <div id="shift-end-title">Shift over</div>
         <div id="shift-end-score">0</div>
         <div id="shift-end-detail"></div>
-        <div id="shift-end-prompt">Press <b>R</b> to fly another shift</div>
+        <div id="shift-end-prompt">Press <b>R</b> &mdash; or <b>Start</b> on a controller &mdash; to fly another shift</div>
       </div>
     </div>
 

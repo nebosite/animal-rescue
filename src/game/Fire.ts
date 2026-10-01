@@ -1,19 +1,40 @@
 /** One burning patch of forest. */
 export interface FirePatch {
+  /**
+   * Stable for the life of the patch. Spent patches are retired from the
+   * middle of the list as the front marches on, so a patch's place in the
+   * array means nothing — anything keeping per-patch state across frames (the
+   * drawing does) must key off this.
+   */
+  id: number
   x: number
   z: number
   radius: number
   /** Seconds since it caught. Old patches burn hollow and leave a ring. */
   age: number
+  /**
+   * How many new patches have caught from this one. Nothing drawn depends on
+   * it; it is what keeps the front a line. Embers go to whichever leading
+   * patch has thrown fewest, so the whole width has to advance a step before
+   * any part of it advances twice — without that the fire picks a direction
+   * and shoots across the map as a single tendril.
+   */
+  children: number
 }
 
 /**
- * The forest fire: a front of burning patches, and the column of heat and
- * smoke standing over each one.
+ * The forest fire: a front of burning patches sweeping in from one side of the
+ * country, and the column of heat and smoke standing over each one.
  *
  * It is a hazard to the machine, never to anything alive — nothing is hurt on
  * screen. Flying into it wrecks the paint, the rotor and eventually the
  * airframe, and that is the whole of its violence.
+ *
+ * It genuinely travels. New patches catch at the *leading edge* rather than
+ * anywhere in the burn, and patches that have eaten their fuel are retired, so
+ * over a shift the fire crosses most of the map instead of fattening where it
+ * started. That is what makes the animals' plight change while you watch: they
+ * are always ahead of it, and the gap closes.
  *
  * Pure geometry, no renderer: the flight loop asks how hot a point is, and the
  * visuals ask the same question to decide where to draw flames.
@@ -25,11 +46,20 @@ export class Fire {
   readonly spread: { x: number; z: number }
 
   private readonly live: FirePatch[]
+  /** The front as the shift starts, kept so another shift can relight it. */
+  private readonly opening: readonly Omit<FirePatch, 'id' | 'children'>[]
   private sinceSpawn = 0
   private spawned = 0
+  private nextId = 0
 
-  constructor(patches: readonly FirePatch[], spread: { x: number; z: number } = { x: 0, z: -1 }) {
-    this.live = patches.map((patch) => ({ ...patch }))
+  constructor(
+    patches: readonly Omit<FirePatch, 'id' | 'children'>[],
+    spread: { x: number; z: number } = { x: 0, z: -1 },
+    /** Patches are kept inside this half-width, so the fire cannot walk off the map. */
+    private readonly halfField = Infinity,
+  ) {
+    this.opening = patches.map((patch) => ({ ...patch }))
+    this.live = patches.map((patch) => ({ ...patch, id: this.nextId++, children: 0 }))
     const length = Math.hypot(spread.x, spread.z) || 1
     this.spread = { x: spread.x / length, z: spread.z / length }
   }
@@ -60,17 +90,32 @@ export class Fire {
     return knocked
   }
 
+  /**
+   * Back to the moment the shift began: the same front on the same edge with
+   * the same wind, and nothing burnt yet. The scorched ground and the dead
+   * trees are not the fire's to undo — whoever owns those puts them back.
+   */
+  relight(): void {
+    this.live.length = 0
+    this.nextId = 0
+    this.age = 0
+    this.sinceSpawn = 0
+    this.spawned = 0
+    for (const patch of this.opening) this.live.push({ ...patch, id: this.nextId++, children: 0 })
+  }
+
   /** Start a fresh patch burning — a spot fire, or a test's blaze. */
-  addPatch(patch: Omit<FirePatch, 'age'> & { age?: number }): void {
+  addPatch(patch: Omit<FirePatch, 'age' | 'id' | 'children'> & { age?: number }): void {
     if (this.live.length >= MAX_PATCHES) return
-    this.live.push({ ...patch, age: patch.age ?? 0 })
+    this.live.push({ ...patch, age: patch.age ?? 0, id: this.nextId++, children: 0 })
   }
 
   /**
-   * Let the fire grow: every patch widens toward its limit, and every so often
-   * a new patch catches downwind of an old one, so the front creeps across the
-   * country toward wherever the animals are waiting. Deterministic, so the
-   * same map always burns the same way and can be learned.
+   * Let the fire grow: every patch widens toward its limit, spent patches are
+   * retired, and every so often a new patch catches at the leading edge, so
+   * the front creeps across the country toward wherever the animals are
+   * waiting. Deterministic, so the same map always burns the same way and can
+   * be learned.
    */
   advance(dt: number): void {
     this.age += dt
@@ -78,6 +123,7 @@ export class Fire {
       patch.radius = Math.min(MAX_RADIUS, patch.radius + GROWTH_PER_SECOND * dt)
       patch.age += dt
     }
+    this.retireSpent()
 
     this.sinceSpawn += dt
     while (this.sinceSpawn >= SPAWN_EVERY && this.live.length < MAX_PATCHES) {
@@ -86,9 +132,36 @@ export class Fire {
     }
   }
 
-  /** A new patch catches at the downwind edge of an existing one. */
+  /**
+   * Drop patches that have burned everything they had.
+   *
+   * Without this the fire is a growing stain rather than a front: the oldest
+   * patches keep a ring of flame for ever, the patch budget fills with ground
+   * the fire crossed minutes ago, and nothing new can catch ahead of it. The
+   * scorched land and the dead trees stay behind regardless — those belong to
+   * the terrain and the forest, not to the patch.
+   */
+  private retireSpent(): void {
+    for (let i = this.live.length - 1; i >= 0; i--) {
+      if (this.live[i].age >= BURNS_OUT_AFTER) this.live.splice(i, 1)
+    }
+  }
+
+  /** A new patch catches at the downwind edge of the leading fire. */
   private ignite(): void {
-    const parent = this.live[this.spawned % this.live.length]
+    if (this.live.length === 0) return
+
+    // Only the leading patches throw embers forward — letting any patch spawn
+    // is why the front used to fatten where it stood instead of travelling —
+    // and among those, the one that has thrown fewest, so the line advances
+    // all along its width instead of growing a tendril.
+    const lead = this.leadingEdge()
+    const front = this.live.filter((patch) => this.downwind(patch.x, patch.z) + patch.radius >= lead - LEAD_BAND)
+    const pool = front.length > 0 ? front : this.live
+    const parent = pool.reduce((fewest, patch) =>
+      patch.children < fewest.children || (patch.children === fewest.children && patch.id < fewest.id) ? patch : fewest)
+    parent.children += 1
+
     const jitter = (hash(this.spawned, 1) - 0.5) * SPREAD_CONE
     const cos = Math.cos(jitter)
     const sin = Math.sin(jitter)
@@ -97,8 +170,39 @@ export class Fire {
     const radius = MIN_NEW_RADIUS + hash(this.spawned, 2) * (MAX_RADIUS * 0.5 - MIN_NEW_RADIUS)
     // New fire catches at the burning edge of the old, not at its dead centre.
     const reach = parent.radius * 0.85 + radius * 0.6
-    this.live.push({ x: parent.x + dirX * reach, z: parent.z + dirZ * reach, radius, age: 0 })
+    const edge = this.halfField - radius * 0.5
+    this.live.push({
+      id: this.nextId++,
+      x: clamp(parent.x + dirX * reach, -edge, edge),
+      z: clamp(parent.z + dirZ * reach, -edge, edge),
+      radius,
+      age: 0,
+      children: 0,
+    })
     this.spawned += 1
+  }
+
+  /** How far along the wind a point lies. */
+  private downwind(x: number, z: number): number {
+    return x * this.spread.x + z * this.spread.z
+  }
+
+  /** How far along the wind the furthest flame has reached. */
+  private leadingEdge(): number {
+    let lead = -Infinity
+    for (const patch of this.live) lead = Math.max(lead, this.downwind(patch.x, patch.z) + patch.radius)
+    return lead
+  }
+
+  /**
+   * How far ahead of the leading edge a point is, along the wind. Positive
+   * means the fire has not got here yet but is coming for it — which is
+   * exactly where an animal running from the front would be standing.
+   */
+  aheadOfFront(x: number, z: number): number {
+    const lead = this.leadingEdge()
+    if (lead === -Infinity) return Infinity
+    return this.downwind(x, z) - lead
   }
 
   /**
@@ -113,9 +217,13 @@ export class Fire {
   intensityAt(x: number, z: number): number {
     let hottest = 0
     for (const patch of this.live) {
-      const distance = Math.hypot(x - patch.x, z - patch.z)
-      if (distance >= patch.radius) continue
-      hottest = Math.max(hottest, this.flameAt(patch, distance / patch.radius))
+      const dx = x - patch.x
+      const dz = z - patch.z
+      const squared = dx * dx + dz * dz
+      // Squared compare first: the fire is asked this thousands of times a
+      // frame and almost every answer is "not this patch".
+      if (squared >= patch.radius * patch.radius) continue
+      hottest = Math.max(hottest, this.flameAt(patch, Math.sqrt(squared) / patch.radius))
     }
     return hottest
   }
@@ -128,8 +236,11 @@ export class Fire {
   /** True where the fire has already passed: black ground, no flame worth the name. */
   isBurntOut(x: number, z: number): boolean {
     for (const patch of this.live) {
-      const distance = Math.hypot(x - patch.x, z - patch.z)
-      if (distance < patch.radius * this.hollowOf(patch)) return true
+      const hollow = patch.radius * this.hollowOf(patch)
+      if (hollow <= 0) continue
+      const dx = x - patch.x
+      const dz = z - patch.z
+      if (dx * dx + dz * dz < hollow * hollow) return true
     }
     return false
   }
@@ -192,10 +303,12 @@ export class Fire {
   private chimneyAt(x: number, z: number): number {
     let most = 0
     for (const patch of this.live) {
-      const distance = Math.hypot(x - patch.x, z - patch.z)
       const outer = patch.radius + THERMAL_SPILL
-      if (distance >= outer) continue
-      most = Math.max(most, 1 - smoothStep(patch.radius * THERMAL_CORE, outer, distance))
+      const dx = x - patch.x
+      const dz = z - patch.z
+      const squared = dx * dx + dz * dz
+      if (squared >= outer * outer) continue
+      most = Math.max(most, 1 - smoothStep(patch.radius * THERMAL_CORE, outer, Math.sqrt(squared)))
       if (most >= 1) return 1
     }
     return most
@@ -236,49 +349,68 @@ export class Fire {
   /** Distance to the nearest flame, for warning the pilot before it hurts. */
   distanceToNearest(x: number, z: number): number {
     let nearest = Infinity
-    for (const patch of this.patches) {
+    for (const patch of this.live) {
       nearest = Math.min(nearest, Math.hypot(x - patch.x, z - patch.z) - patch.radius)
     }
     return Math.max(0, nearest)
   }
 
   /**
-   * Lay a fire front across the country between two points, offset to one side
-   * so there is always a way round as well as a way over. Deterministic, so
-   * the same map always burns in the same place.
+   * A fire already burning along one edge of the country when the shift
+   * starts, with the wind driving it straight across. `wind` is the direction
+   * it travels, so a wind of (-1, 0) means a front standing on the +x edge and
+   * coming west.
+   *
+   * This is the shape the game is about: everything alive is on the unburnt
+   * side, running ahead of the front, and the only question is who you reach
+   * first. The line spans the whole field, so there is no slipping round the
+   * end of it. There is no need to cross it either — the base is downwind,
+   * ahead of the fire like the animals are — so the front is a clock chasing
+   * everyone home rather than a wall across the road. Crossing it is the
+   * shortcut you take when it has got ahead of you.
+   *
+   * The wind is deliberately square to an axis. Everything that asks "is this
+   * spot in the fire's path" measures against the leading edge along the wind,
+   * and that only means anything while the front is a line across the wind —
+   * a front bent round a corner has its tips furthest downwind and would
+   * report the middle of the map as already passed.
    */
-  static frontBetween(
-    from: { x: number; z: number },
-    to: { x: number; z: number },
-    options: { patches?: number; spread?: number; radius?: number; offset?: number } = {},
+  static sweepingIn(
+    wind: { x: number; z: number },
+    halfField: number,
+    options: { patches?: number; radius?: number; inset?: number } = {},
   ): Fire {
-    const count = options.patches ?? 9
-    const spread = options.spread ?? 150
-    const radius = options.radius ?? 44
-    const offset = options.offset ?? 70
+    const count = options.patches ?? 15
+    const radius = options.radius ?? 46
+    const inset = options.inset ?? 40
 
-    const midX = (from.x + to.x) / 2
-    const midZ = (from.z + to.z) / 2
-    // Along the line between the pads, and the perpendicular to it.
-    const length = Math.hypot(to.x - from.x, to.z - from.z) || 1
-    const alongX = (to.x - from.x) / length
-    const alongZ = (to.z - from.z) / length
+    const length = Math.hypot(wind.x, wind.z) || 1
+    const alongX = wind.x / length
+    const alongZ = wind.z / length
     const acrossX = -alongZ
     const acrossZ = alongX
 
-    const patches: FirePatch[] = []
+    // Upwind edge of the field: the line starts as far back as it can.
+    const originX = -alongX * (halfField - inset)
+    const originZ = -alongZ * (halfField - inset)
+    const edge = halfField - radius * 0.5
+
+    const patches: Array<Omit<FirePatch, 'id' | 'children'>> = []
     for (let i = 0; i < count; i++) {
       // -1..1 across the front.
       const t = count === 1 ? 0 : (i / (count - 1)) * 2 - 1
-      const wander = Math.sin(i * 2.399) * 26
-      const centreX = midX + acrossX * t * spread + alongX * (offset + wander)
-      const centreZ = midZ + acrossZ * t * spread + alongZ * (offset + wander)
-      // Thickest in the middle of the front, tapering at its ends.
-      const size = radius * (0.6 + 0.4 * Math.cos((t * Math.PI) / 2))
-      patches.push({ x: centreX, z: centreZ, radius: size, age: 0 })
+      // A ragged line: a real front is not a ruler, and the kinks are what
+      // put some animals closer to it than others from the first second.
+      const wander = Math.sin(i * 2.399) * 34
+      patches.push({
+        x: clamp(originX + acrossX * t * edge + alongX * wander, -edge, edge),
+        z: clamp(originZ + acrossZ * t * edge + alongZ * wander, -edge, edge),
+        // Thickest in the middle of the front, tapering at its ends.
+        radius: radius * (0.65 + 0.35 * Math.cos((t * Math.PI) / 2)),
+        age: 0,
+      })
     }
-    // The wind blows on toward the far end, so the fire chases the animals.
-    return new Fire(patches, { x: alongX, z: alongZ })
+    return new Fire(patches, { x: alongX, z: alongZ }, halfField)
   }
 }
 
@@ -293,6 +425,10 @@ function hash(index: number, channel: number): number {
 function smoothStep(from: number, to: number, value: number): number {
   const t = Math.min(1, Math.max(0, (value - from) / (to - from)))
   return t * t * (3 - 2 * t)
+}
+
+function clamp(value: number, low: number, high: number): number {
+  return Math.min(high, Math.max(low, value))
 }
 
 /** Below this the helicopter is merely warm, not burning. */
@@ -338,9 +474,21 @@ export const COLUMN_HEIGHT = 85
 const GROWTH_PER_SECOND = 0.35
 const MAX_RADIUS = 64
 const MIN_NEW_RADIUS = 22
-/** Seconds between new patches catching. */
-const SPAWN_EVERY = 14
+/**
+ * Seconds between new patches catching. Brisk, because the front has to cross
+ * most of an 840-metre map inside a five-minute shift for the animals' plight
+ * to change while the player watches.
+ */
+const SPAWN_EVERY = 4.0
+/**
+ * How long a patch burns before it has eaten everything and goes out. The
+ * black ground and the dead trees stay; only the live flame is retired. This
+ * is what keeps the burn a travelling front rather than a spreading stain.
+ */
+const BURNS_OUT_AFTER = 60
+/** How far back from the leading edge still counts as "the front", for spawning. */
+const LEAD_BAND = 70
 /** The drawing pre-allocates for this many; the fire never exceeds it. */
-export const MAX_PATCHES = 30
+export const MAX_PATCHES = 44
 /** How far off the wind a new patch may catch, radians, total width. */
 const SPREAD_CONE = 1.7

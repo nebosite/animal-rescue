@@ -8,13 +8,14 @@ import { SiteFinder } from './SiteFinder'
 import { Terrain } from './Terrain'
 import { TreeCover } from './TreeCover'
 
+/** The fire comes in off the +x edge and blows west, as it does in the game. */
+const WEST = { x: -1, z: 0 }
 const terrain = new Terrain(420)
 const baseAt = { x: -316, z: 190 }
 const baseHeight = terrain.levelAt(baseAt.x, baseAt.z, 17)
 const base = new LandingPad('Rescue base', new THREE.Vector3(baseAt.x, baseHeight, baseAt.z), 11)
 const trees = new TreeCover(terrain, [{ x: baseAt.x, z: baseAt.z, radius: 40 }])
 const finder = new SiteFinder(terrain, trees, baseAt)
-const pickupEnd = { x: 195, z: -203 }
 
 const at = (site: { x: number; y: number; z: number }) => ({ x: site.x, y: site.y + 2, z: site.z })
 const onBase = { x: base.position.x, y: base.position.y + 2, z: base.position.z }
@@ -23,7 +24,7 @@ describe('Rescue', () => {
   let fire: Fire
   let rescue: Rescue
   beforeEach(() => {
-    fire = Fire.frontBetween(baseAt, pickupEnd)
+    fire = Fire.sweepingIn(WEST, 420)
     rescue = new Rescue(base, finder, fire)
   })
 
@@ -154,7 +155,7 @@ describe('Rescue', () => {
     const before = { ...victim.site }
     const creditBefore = victim.credit
     // The constructor avoids fire when placing, so plant a blaze on a site afterwards.
-    const blaze = Fire.frontBetween(baseAt, pickupEnd)
+    const blaze = Fire.sweepingIn(WEST, 420)
     const hot = new Rescue(base, finder, blaze, ROSTER)
     const w = hot.waiting[0]
     blaze.addPatch({ x: w.site.x, z: w.site.z, radius: 30 })
@@ -167,15 +168,27 @@ describe('Rescue', () => {
     void creditBefore
   })
 
-  it('recommends the animal the fire is closing on, else the nearest one', () => {
-    const nearest = rescue.recommended({ x: rescue.waiting[2].site.x, z: rescue.waiting[2].site.z })
-    expect(nearest).toBe(rescue.waiting[2])
+  it('always has somebody with the fire at their heels, and sends you there first', () => {
+    // Every animal now waits in the fire's path, and the nearest band is
+    // deliberately inside worrying range — so from the first second there is
+    // someone the Chief should be shouting about.
+    const threatened = rescue.mostThreatened()
+    expect(threatened).not.toBeNull()
+    expect(rescue.threatTo(threatened!)).toBeLessThanOrEqual(70)
 
-    // Threaten a different one and it jumps the queue.
-    const threatened = rescue.waiting[1]
-    fire.addPatch({ x: threatened.site.x + 45, z: threatened.site.z, radius: 20 })
-    expect(rescue.mostThreatened()).toBe(threatened)
-    expect(rescue.recommended({ x: rescue.waiting[2].site.x, z: rescue.waiting[2].site.z })).toBe(threatened)
+    // Standing right on top of somebody else does not change the advice.
+    const other = rescue.waiting.find((w) => w !== threatened)!
+    expect(rescue.recommended({ x: other.site.x, z: other.site.z })).toBe(threatened)
+  })
+
+  it('falls back to the nearest animal when nobody is in immediate danger', () => {
+    // Right off the map: the bands are measured from the flames, so a fire
+    // anywhere on it would have somebody standing the near band away from it.
+    const faraway = new Fire([{ x: 4000, z: 4000, radius: 10, age: 0 }])
+    const quiet = new Rescue(base, finder, faraway, ROSTER)
+    expect(quiet.mostThreatened()).toBeNull()
+    const target = quiet.waiting[2]
+    expect(quiet.recommended({ x: target.site.x, z: target.site.z })).toBe(target)
   })
 
   it('works through the roster in order and wraps around', () => {
@@ -191,7 +204,7 @@ describe('Rescue', () => {
   })
 
   it('reports the same layout every time, so the map is learnable', () => {
-    const again = new Rescue(base, finder, Fire.frontBetween(baseAt, pickupEnd))
+    const again = new Rescue(base, finder, Fire.sweepingIn(WEST, 420))
     expect(again.waiting.map((w) => [w.animal.id, w.site.x, w.site.z]))
       .toEqual(rescue.waiting.map((w) => [w.animal.id, w.site.x, w.site.z]))
   })

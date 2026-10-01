@@ -29,6 +29,22 @@ export class Ducker {
     gain.setTargetAtTime(DUCKED, end, 0.001)
     gain.setTargetAtTime(1, end + 0.01, RECOVER_SECONDS)
   }
+
+  /**
+   * End the dip now, whatever was scheduled.
+   *
+   * Synthesised speech has no length that can be worked out in advance, so it
+   * ducks generously and calls this when it actually stops talking. Letting a
+   * too-long duck expire on its own instead leaves the engine sitting low after
+   * the voice has finished, which is heard as the sound having cut out.
+   */
+  release(): void {
+    const now = this.context.currentTime
+    this.until = now
+    const gain = this.input.gain
+    gain.cancelScheduledValues(now)
+    gain.setTargetAtTime(1, now, RECOVER_SECONDS)
+  }
 }
 
 /**

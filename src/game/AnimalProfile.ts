@@ -154,8 +154,8 @@ export const CHIEF: SpeakerProfile & {
     bump: string[]
     treetops: string[]
     scorched: string[]
-    grounded: string[]
-    repaired: string[]
+    failing: string[]
+    wrecked: string[]
     fireClosing: string[]
     shiftOver: string[]
   }
@@ -170,21 +170,24 @@ export const CHIEF: SpeakerProfile & {
       'Those are TREES. We fly ABOVE the trees.',
       'I can hear the branches from here. Climb!',
       'Pine sap. On my paint. Marvellous.',
+      'You just pruned an entire fir with MY ROTOR.',
+      'There is bark in the air intake. BARK, pilot.',
+      'I am watching needles rain out of my helicopter. Needles!',
     ],
     scorched: [
       'THE FIRE. NOT INTO THE FIRE. Over it or around it!',
       'That is my clear coat blistering. GET OUT OF THERE.',
       'Paint burns, pilot. Paint BURNS.',
     ],
-    grounded: [
-      "That's it — I'm flying her home myself. Hands off.",
-      'Autopilot engaged. Sit there and think about what you have done.',
-      "She's a cinder. Bringing her in. Do not touch anything.",
+    failing: [
+      'She is coming apart, pilot. One more run at most. Your call.',
+      'Listen to that engine. LISTEN to it. Think about coming home.',
+      'That bird has nothing left. Whatever you do next, do it gently.',
     ],
-    repaired: [
-      'Buffed out. Barely. Try to keep her shiny this time.',
-      'New paint. Again. Go on, the animals are waiting.',
-      "Good as new. I said NEW. Don't make me say it a third time.",
+    wrecked: [
+      'She is finished. Fly her home and we will call it a shift.',
+      'Nothing left but the paint, and there is no paint. Land at base.',
+      'Put her on the pad, pilot. I am not watching this any longer.',
     ],
     fireClosing: [
       "The fire's nearly on {name}. That one first. Go!",

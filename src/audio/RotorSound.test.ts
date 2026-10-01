@@ -36,3 +36,38 @@ describe('rotorTargets', () => {
     expect(rotorTargets(1, 46).chopHz).toBeLessThanOrEqual(24)
   })
 })
+
+describe('rotorTargets on a damaged machine', () => {
+  const fresh = rotorTargets(0.5, 20, 1)
+  const hurt = rotorTargets(0.5, 20, 0.5)
+  const wreck = rotorTargets(0.5, 20, 0)
+
+  it('sounds lower and slower the worse the machine gets', () => {
+    expect(hurt.droneHz).toBeLessThan(fresh.droneHz)
+    expect(wreck.droneHz).toBeLessThan(hurt.droneHz)
+    expect(wreck.chopHz).toBeLessThan(fresh.chopHz)
+    expect(wreck.whineHz).toBeLessThan(fresh.whineHz)
+  })
+
+  it('surges and grinds, and does neither at all when it is whole', () => {
+    expect(fresh.surgeDepthHz).toBe(0)
+    expect(fresh.rasp).toBe(0)
+    expect(wreck.surgeDepthHz).toBeGreaterThan(10)
+    expect(wreck.rasp).toBeGreaterThan(0.5)
+  })
+
+  it('barely mentions a scratch, so the cue is spent where it matters', () => {
+    const scratched = rotorTargets(0.5, 20, 0.95)
+    expect(scratched.surgeDepthHz).toBeLessThan(0.2)
+    expect(scratched.rasp).toBeLessThan(0.01)
+  })
+
+  it('still keeps the chop in the range a rotor thumps at, wrecked or not', () => {
+    expect(rotorTargets(0, 0, 0).chopHz).toBeGreaterThanOrEqual(8)
+    expect(rotorTargets(1, 46, 0).chopHz).toBeLessThanOrEqual(24)
+  })
+
+  it('never goes silent as it breaks: a dying engine changes note, not volume', () => {
+    expect(wreck.gain).toBeCloseTo(fresh.gain, 5)
+  })
+})

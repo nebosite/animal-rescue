@@ -1,22 +1,22 @@
 import { describe, expect, it } from 'vitest'
 import * as THREE from 'three'
 import { FireField } from './FireField'
-import { Fire, MAX_PATCHES } from '../game/Fire'
+import { Fire } from '../game/Fire'
 import { Terrain } from '../game/Terrain'
 
 const terrain = new Terrain(420)
 
 /**
- * Where every flame slot is actually drawn, skipping the ones put away.
+ * Where every smoke puff is actually drawn, skipping the ones put away.
  *
  * The size is read from the matrix itself rather than through `decompose`,
  * which reports a scale of (1,1,1) for a degenerate matrix — so a slot scaled
- * to nothing comes back through it looking like a full-sized flame at the
+ * to nothing comes back through it looking like a full-sized puff at the
  * origin.
  */
 function shown(field: FireField): THREE.Vector3[] {
   const mesh = field.group.children.find(
-    (child): child is THREE.InstancedMesh => child instanceof THREE.InstancedMesh && child.count > MAX_PATCHES * 20,
+    (child): child is THREE.InstancedMesh => child instanceof THREE.InstancedMesh,
   )!
   const out: THREE.Vector3[] = []
   const matrix = new THREE.Matrix4()
@@ -31,71 +31,69 @@ function shown(field: FireField): THREE.Vector3[] {
 }
 
 describe('FireField', () => {
-  it('draws no flame at all for a slot with no patch behind it', () => {
-    // One patch, so all but the first slot-full of flames have nothing to draw.
-    const fire = new Fire([{ x: 0, z: 0, radius: 30, age: 0 }])
-    const field = new FireField(fire, terrain)
-    field.update(1)
-
+  it('draws nothing at all for a slot with no patch behind it', () => {
     // Sharing the scratch transform with the "hide it" matrix meant the first
-    // flame placed each frame became the hidden matrix, so every unused slot
-    // drew a copy of it stacked on one spot — a bright knot in the fire that
-    // never moved and belonged to no patch.
-    const lit = shown(field)
-    expect(lit).toHaveLength(46)
-    for (const flame of lit) {
-      expect(Math.hypot(flame.x, flame.z)).toBeLessThanOrEqual(35)
-    }
-  })
-
-  it('never stacks flames on one spot', () => {
+    // puff placed each frame became the hidden matrix, so every unused slot
+    // drew a copy of it stacked on one spot.
     const fire = new Fire([{ x: 0, z: 0, radius: 30, age: 0 }])
     const field = new FireField(fire, terrain)
     field.update(1)
 
-    const places = new Map<string, number>()
-    for (const flame of shown(field)) {
-      const key = `${flame.x.toFixed(1)},${flame.z.toFixed(1)}`
-      places.set(key, (places.get(key) ?? 0) + 1)
-    }
-    expect(Math.max(...places.values())).toBeLessThan(4)
+    const lit = shown(field)
+    expect(lit).toHaveLength(18)
+    for (const puff of lit) expect(Math.hypot(puff.x, puff.z)).toBeLessThan(90)
   })
 
-  it('puts no flame on ground the fire has already burnt through', () => {
-    // Two heavily overlapping patches, the first old enough to be hollow: the
-    // younger one's ring runs straight across the older one's dead middle.
+  it('stands a column over every patch that is burning', () => {
     const fire = new Fire([
-      { x: 0, z: 0, radius: 60, age: 400 },
-      { x: 20, z: 0, radius: 60, age: 0 },
+      { x: -120, z: 0, radius: 30, age: 0 },
+      { x: 120, z: 0, radius: 30, age: 0 },
     ])
     const field = new FireField(fire, terrain)
     field.update(1)
-
     const lit = shown(field)
-    expect(lit.length).toBeGreaterThan(10)
-    for (const flame of lit) expect(fire.isBurntOut(flame.x, flame.z)).toBe(false)
+    expect(lit.some((puff) => puff.x < -60)).toBe(true)
+    expect(lit.some((puff) => puff.x > 60)).toBe(true)
   })
 
-  it('still shows a young patch burning right through its middle', () => {
-    const fire = new Fire([{ x: 0, z: 0, radius: 40, age: 0 }])
+  it('rolls the smoke upward over time rather than leaving it hanging', () => {
+    const fire = new Fire([{ x: 0, z: 0, radius: 30, age: 0 }])
     const field = new FireField(fire, terrain)
-    field.update(1)
-
-    const lit = shown(field)
-    expect(lit.length).toBeGreaterThan(20)
-    expect(lit.some((flame) => Math.hypot(flame.x, flame.z) < 12)).toBe(true)
+    field.update(0)
+    const low = Math.max(...shown(field).map((puff) => puff.y))
+    field.update(4)
+    expect(Math.max(...shown(field).map((puff) => puff.y))).not.toBe(low)
   })
 
-  it('keeps the flames of an old patch out in a ring at its edge', () => {
-    const fire = new Fire([{ x: 0, z: 0, radius: 60, age: 400 }])
+  it('keeps a patch with its own smoke when the fire retires one from the middle', () => {
+    // Patches are dropped from the middle of the list as the front moves on,
+    // so a slot found by array position belongs to a different patch on the
+    // next frame, and the whole plume jumps sideways on the frame it happens.
+    const fire = new Fire([
+      { x: -200, z: -150, radius: 40, age: 59 },
+      { x: 200, z: 150, radius: 40, age: 0 },
+    ])
     const field = new FireField(fire, terrain)
     field.update(1)
+    for (let i = 0; i < 20; i++) fire.advance(0.1)
+    expect(fire.patches).toHaveLength(1)
+    field.update(2)
 
     const lit = shown(field)
-    expect(lit.length).toBeGreaterThan(20)
-    for (const flame of lit) {
-      // Inside the hollow there should be nothing; sway moves a flame a little.
-      expect(Math.hypot(flame.x, flame.z)).toBeGreaterThan(30)
+    expect(lit).toHaveLength(18)
+    for (const puff of lit) {
+      expect(Math.hypot(puff.x - 200, puff.z - 150)).toBeLessThan(140)
     }
+  })
+
+  it('lights the hills near the biggest fires', () => {
+    const fire = new Fire([{ x: 40, z: -60, radius: 50, age: 0 }])
+    const field = new FireField(fire, terrain)
+    field.update(1)
+    const lights = field.group.children.filter((child): child is THREE.PointLight => child instanceof THREE.PointLight)
+    expect(lights.length).toBeGreaterThan(0)
+    const lit = lights.filter((light) => light.visible)
+    expect(lit).toHaveLength(1)
+    expect(Math.hypot(lit[0].position.x - 40, lit[0].position.z + 60)).toBeLessThan(1)
   })
 })

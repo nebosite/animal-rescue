@@ -10,7 +10,7 @@ export class VolumeControl {
   constructor(
     private readonly engine: AudioEngine,
     private readonly button: HTMLButtonElement,
-    slider: HTMLInputElement,
+    private readonly slider: HTMLInputElement,
   ) {
     const saved = loadSetting()
     engine.setVolume(saved.volume)
@@ -18,7 +18,14 @@ export class VolumeControl {
     slider.value = String(saved.volume)
 
     button.addEventListener('click', () => {
+      const unmuting = engine.muted
       engine.setMuted(!engine.muted)
+      // Unmuting has to produce sound, always. The slider is one click away
+      // from zero and the setting is remembered between visits, so a stray
+      // click on the left of it leaves the game permanently silent — and the
+      // one thing anybody tries, pressing the mute button twice, does nothing
+      // whatever, because unmuting a volume of zero is still zero.
+      if (unmuting && engine.volume <= 0) this.setVolume(RECOVERED_VOLUME)
       this.render()
       this.save()
       button.blur()
@@ -35,6 +42,12 @@ export class VolumeControl {
     slider.addEventListener('pointerup', () => slider.blur())
 
     this.render()
+  }
+
+  /** Move the slider and the engine together. */
+  private setVolume(volume: number): void {
+    this.engine.setVolume(volume)
+    this.slider.value = String(this.engine.volume)
   }
 
   private render(): void {
@@ -69,3 +82,5 @@ function loadSetting(): { volume: number; muted: boolean } {
 }
 
 const STORAGE_KEY = 'animal-rescue.audio'
+/** Where the volume lands when unmuting finds it at zero. */
+const RECOVERED_VOLUME = 0.7

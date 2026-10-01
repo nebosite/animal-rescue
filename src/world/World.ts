@@ -13,6 +13,10 @@ import { FireField } from './FireField'
 import { Beacon } from './Beacon'
 import { WinchLine } from './WinchLine'
 import { WaterDrop } from './WaterDrop'
+import { Debris } from './Debris'
+import { FireParticles } from './FireParticles'
+import { GroundShadow } from './GroundShadow'
+import { Plain } from './Plain'
 import { SiteFinder } from '../game/SiteFinder'
 import { FIELD_LIMIT } from '../game/Helicopter'
 
@@ -46,17 +50,21 @@ export class World {
   readonly terrainMesh: TerrainMesh
   readonly winchLine = new WinchLine()
   readonly waterDrop = new WaterDrop()
+  /** Needles and bark knocked out of the canopy by a clumsy approach. */
+  readonly debris = new Debris()
+  /** The helicopter's own shadow, for reading height on the way down. */
+  readonly shadow: GroundShadow
 
   private cameraPlaced = false
   private readonly fireField: FireField
+  private readonly sparks: FireParticles
   private readonly baseBeacon: Beacon
   private readonly padModels: Map<LandingPad, LandingPadModel>
 
   constructor(slots = 3) {
-    // The base sits on a low shelf. The high ground opposite is where the wind
-    // pushes the fire, and where the animals are mostly waiting.
+    // The base sits on a low shelf in the sheltered corner, as far from the
+    // fire's edge as the map allows.
     const base = this.levelSpot(-250, 250, 'lowest')
-    const high = this.findSpot(255, -245, 'highest')
 
     this.rescuePad = new LandingPad('Rescue base', base, PAD_RADIUS)
     this.pads = [this.rescuePad]
@@ -80,6 +88,13 @@ export class World {
     this.terrainMesh = new TerrainMesh(this.terrain)
     this.scene.add(this.terrainMesh.mesh)
 
+    // The country beyond the hills, lying at the bottom of the valley so it is
+    // buried everywhere the hills exist and takes over exactly where they stop.
+    this.scene.add(new Plain(this.terrain.lowestPoint()).mesh)
+
+    this.shadow = new GroundShadow(this.terrain)
+    this.scene.add(this.shadow.mesh)
+
     this.padModels = new Map([[this.rescuePad, new LandingPadModel(this.rescuePad, RESCUE_RIM_COLOR)]])
     for (const model of this.padModels.values()) this.scene.add(model.group)
 
@@ -93,11 +108,18 @@ export class World {
     this.baseBeacon = new Beacon(base, RESCUE_RIM_COLOR)
     this.scene.add(this.baseBeacon.group)
 
-    // The fire lies across the run to the high ground and creeps toward it, so
-    // every trip is a decision and every wait has a clock.
-    this.fire = Fire.frontBetween(base, high)
+    // The fire is already burning along the whole far edge when the shift
+    // starts, and the wind drives it across the map toward the base. The high
+    // country goes first and everything alive is somewhere between the front
+    // and home, running ahead of it — which is the entire situation the game
+    // is about. The base is downwind too, so nobody is ever trapped behind it.
+    this.fire = Fire.sweepingIn(FIRE_WIND, FIELD_LIMIT)
     this.fireField = new FireField(this.fire, this.terrain)
     this.scene.add(this.fireField.group)
+
+    // Built after the forest and the fire, because it is fed by both.
+    this.sparks = new FireParticles(this.fire, this.treeCover, this.terrain)
+    this.scene.add(this.sparks.mesh)
 
     this.sites = new SiteFinder(this.terrain, this.treeCover, base)
 
@@ -113,6 +135,7 @@ export class World {
     this.scene.add(this.animal.group)
     this.scene.add(this.winchLine.group)
     this.scene.add(this.waterDrop.group)
+    this.scene.add(this.debris.group)
     this.scene.add(this.helicopter.group)
   }
 
@@ -121,12 +144,32 @@ export class World {
     for (const [pad, model] of this.padModels) model.setActive(pad === landedOn)
   }
 
-  /** Flicker the flames, roll the smoke, pulse the beacons, fall the water. */
+  /**
+   * Flicker the flames, boil the burning trees, roll the smoke, pulse the
+   * beacons, fall the water and tumble the debris. Every frame — unlike
+   * `burnTrees`, which decides *what* is on fire and can afford to be lazy
+   * about it. Fire that moves four times a second looks like a slide show.
+   */
   updateEffects(elapsed: number, dt: number, viewer: THREE.Vector3): void {
     this.fireField.update(elapsed)
+    this.sparks.update(elapsed, dt, this.camera)
     this.baseBeacon.update(elapsed, viewer)
     for (const flare of this.flares) flare.update(elapsed, viewer)
     this.waterDrop.update(dt)
+    this.debris.update(dt)
+  }
+
+  /**
+   * Back to the top of a shift: the front on the far edge again, the forest
+   * green, the ground unburnt. Everything here is state the landscape itself
+   * accumulated; the score, the clock and the machine are reset by whoever
+   * owns those.
+   */
+  reset(): void {
+    this.fire.relight()
+    this.treeCover.regrow()
+    this.forest.restore()
+    this.terrainMesh.unscorch()
   }
 
   /**
@@ -242,6 +285,12 @@ const SKY_COLOR = 0x8fd3ff
 const FOG_NEAR = 180
 const FOG_FAR = 1150
 const PAD_RADIUS = 11
+/**
+ * Which way the fire travels. The base sits low in the -x half, so a westward
+ * wind puts the front on the far +x edge with the whole map — the high
+ * country, the canyon, the base itself — downwind of it.
+ */
+const FIRE_WIND = { x: -1, z: 0 }
 const PICKUP_RIM_COLOR = 0xd9a441
 const RESCUE_RIM_COLOR = 0x5b8fd9
 /** Animal flares are shorter than the base beacon: findable, not skyline. */

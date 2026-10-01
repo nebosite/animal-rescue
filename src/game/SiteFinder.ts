@@ -35,9 +35,15 @@ interface Candidate {
  *
  * Pickups are places rather than pads, so every trip is a different flight
  * with a different landing. The finder scans the map once, keeps every spot
- * where the skids could safely go down, and then answers "give me a hilltop"
- * with a deterministic pick among the best of them — the same seed always
- * gives the same place, so a map can be learned.
+ * where the skids could safely go down, and then answers a request with a
+ * deterministic pick among the best of them — the same seed always gives the
+ * same place, so a map can be learned.
+ *
+ * The request that matters is `findAhead`: everything alive is on the unburnt
+ * side of the front, running from it, so an animal belongs *in the fire's
+ * path* — some close enough to see the flames from, some a long way out. The
+ * terrain kind is then whatever that spot happens to be, which is where its
+ * landing difficulty and its name come from.
  */
 export class SiteFinder {
   private readonly candidates: Candidate[] = []
@@ -87,8 +93,37 @@ export class SiteFinder {
   }
 
   /**
+   * Somewhere in the fire's path, standing roughly `aheadBy` metres clear of
+   * the nearest flame.
+   *
+   * "In the path" means downwind of the leading edge, so the front really is
+   * coming for it — a spot off the flank is no safer but it is not part of the
+   * story. Asking for several different distances is what gives a shift one
+   * animal with flames at the treeline and one still out in the green.
+   */
+  findAhead(fire: Fire, aheadBy: number, seed: number, avoid: ReadonlyArray<{ x: number; z: number }> = []): Site | null {
+    // The gap is measured once per candidate rather than inside the sort: it
+    // walks every live patch, and the comparator would ask n log n times.
+    const options: Array<{ c: Candidate; gap: number }> = []
+    for (const c of this.candidates) {
+      if (fire.aheadOfFront(c.x, c.z) <= 0) continue
+      if (!this.clearOf(c, avoid)) continue
+      const gap = fire.distanceToNearest(c.x, c.z)
+      if (gap < SAFE_FROM_FIRE) continue
+      options.push({ c, gap })
+    }
+    if (options.length === 0) return null
+
+    options.sort((a, b) => Math.abs(a.gap - aheadBy) - Math.abs(b.gap - aheadBy))
+    const best = options.slice(0, SHORTLIST)
+    const pick = best[Math.floor(hash(seed) * best.length) % best.length].c
+    return this.site(pick, this.kindOf(pick, fire))
+  }
+
+  /**
    * Where a frightened animal runs when the fire reaches it: not far, away
-   * from the flames, and somewhere a helicopter can still land.
+   * from the flames, still in the path of the front, and somewhere a
+   * helicopter can land.
    */
   fleeFrom(from: { x: number; z: number }, fire: Fire, seed: number, avoid: ReadonlyArray<{ x: number; z: number }> = []): Site | null {
     const wasThisFar = fire.distanceToNearest(from.x, from.z)
@@ -184,7 +219,13 @@ const LABEL: Record<SiteKind, string> = {
 
 const SCAN_STEP = 12
 const EDGE_MARGIN = 40
-const MIN_FROM_BASE = 220
+/**
+ * Sites stay this far from base, so every rescue is a flight. Shorter than it
+ * was: once the animals have to be in the fire's path, the band of ground
+ * that qualifies moves across the map, and too big a hole around the base
+ * leaves nowhere to stand late in a shift.
+ */
+const MIN_FROM_BASE = 170
 /** Clear ground the skids need, in trunk distance. */
 const TOUCHDOWN_GAP = 7.5
 const SHORTLIST = 12

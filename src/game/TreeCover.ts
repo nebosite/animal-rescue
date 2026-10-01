@@ -18,8 +18,14 @@ export interface Tree {
   scale: number
   /** World height of the top of its canopy. */
   top: number
-  /** Horizontal radius that counts as a strike. */
+  /** World height of the lowest branches: below this it is a bare pole. */
+  crownBottom: number
+  /** How tall the crown is — not simply proportional to `scale`. */
+  crownHeight: number
+  /** Horizontal radius that counts as a strike, up in the branches. */
   radius: number
+  /** And down the bare trunk, where there is much less to hit. */
+  trunkRadius: number
   state: TreeState
   /** Seconds it has been alight. */
   alight: number
@@ -69,12 +75,17 @@ export class TreeCover {
       if (clearings.some((c) => Math.hypot(x - c.x, z - c.z) < c.radius)) continue
 
       const scale = 0.7 + fraction(i, 3) * 0.8
+      const crownHeight = crownHeightFor(scale)
+      const crownBottom = ground + TRUNK_HEIGHT * CROWN_SITS * scale
       trees.push({
         index: trees.length,
         x, z, ground, scale,
-        top: ground + TOP_OF_CANOPY * scale,
+        crownHeight,
+        crownBottom,
+        top: crownBottom + crownHeight,
         // The hull, not the rotor — so threading between trunks is possible.
         radius: CANOPY_RADIUS * scale + HULL_RADIUS,
+        trunkRadius: TRUNK_RADIUS * scale + HULL_RADIUS,
         state: 'green',
         alight: 0,
         burnsFor: BURNS_FOR * (0.65 + fraction(i, 4) * 0.7),
@@ -90,7 +101,14 @@ export class TreeCover {
     }
   }
 
-  /** The tree being clipped at this point, or null. */
+  /**
+   * The tree being clipped at this point, or null.
+   *
+   * Up in the branches a tree is a wide thing to hit; below them it is a bare
+   * pole and much narrower. That distinction matters now that the trees really
+   * do have most of their height clear — without it, dropping down between two
+   * trunks snagged on branches that are plainly ten metres overhead.
+   */
   strikeAt(x: number, y: number, z: number): Tree | null {
     // A tree can reach into a neighbouring cell, so check the ring around us.
     for (let ox = -1; ox <= 1; ox++) {
@@ -99,7 +117,8 @@ export class TreeCover {
         if (!bucket) continue
         for (const tree of bucket) {
           if (y > tree.top) continue
-          if (Math.hypot(x - tree.x, z - tree.z) > tree.radius) continue
+          const reach = y < tree.crownBottom ? tree.trunkRadius : tree.radius
+          if (Math.hypot(x - tree.x, z - tree.z) > reach) continue
           return tree
         }
       }
@@ -156,6 +175,20 @@ export class TreeCover {
       spent.push(tree)
     }
     return spent
+  }
+
+  /**
+   * A green forest again, for a fresh shift. Returns every tree so whoever is
+   * drawing them can put them all back — a tree that burned in the last shift
+   * is still black on the screen until someone redraws it.
+   */
+  regrow(): readonly Tree[] {
+    for (const tree of this.trees) {
+      tree.state = 'green'
+      tree.alight = 0
+    }
+    this.alight.length = 0
+    return this.trees
   }
 
   /** The trees currently alight, for whoever is drawing the flames in them. */
@@ -234,10 +267,24 @@ const CATCHES_AT = 0.12
  */
 const BURNS_FOR = 11
 
-/** Matches the drawn tree: trunk plus cone, measured from the ground. */
-export const TRUNK_HEIGHT = 6
-export const CANOPY_HEIGHT = 9
+/** Matches the drawn tree: a bare trunk with a crown of branches on top. */
+export const TRUNK_HEIGHT = 9
+export const TRUNK_RADIUS = 0.55
 export const CANOPY_RADIUS = 2.6
-const TOP_OF_CANOPY = TRUNK_HEIGHT * 0.85 + CANOPY_HEIGHT
+/** Where up the trunk the lowest branches start. */
+export const CROWN_SITS = 0.9
+/** The crown of an average-sized tree. */
+export const CROWN_HEIGHT = 6
+
+/**
+ * How tall a tree's crown is for its size — deliberately *not* proportional.
+ * A big forest fir carries its branches in the top third and is a bare spar
+ * below that, while a young one is needled most of the way down, so the crown
+ * has to grow more slowly than the trunk it sits on.
+ */
+export function crownHeightFor(scale: number): number {
+  return CROWN_HEIGHT * (0.5 + 0.5 * scale)
+}
+
 /** Roughly the hull's half-width. The rotor is ignored, so gaps are flyable. */
 const HULL_RADIUS = 2.2
