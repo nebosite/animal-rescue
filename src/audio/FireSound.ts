@@ -1,4 +1,5 @@
 import type { AudioEngine } from './AudioEngine'
+import { decibels, TRIM } from './Mix'
 import { createNoiseBuffer } from './NoiseBuffer'
 
 /**
@@ -43,7 +44,7 @@ export class FireSound {
     const now = this.context.currentTime
     const nearness = Math.max(0, 1 - distanceToFire / HEARING_RANGE)
     const loudness = inTheFire ? 1 : nearness * nearness
-    this.output.gain.setTargetAtTime(loudness * MAX_LEVEL, now, 0.3)
+    this.output.gain.setTargetAtTime(fireOutput(loudness * MAX_LEVEL), now, 0.3)
 
     // Crackle: short bright pops, more of them the closer you are.
     if (loudness > 0.04 && now >= this.nextCrackle) {
@@ -68,6 +69,14 @@ export class FireSound {
     source.start(at, Math.random() * 1.5)
     source.stop(at + 0.1)
   }
+}
+
+/**
+ * What reaches the mix. The crackle pops connect to the same output, so they
+ * come down with the roar. The fire was drowning the radio.
+ */
+export function fireOutput(gain: number): number {
+  return gain * decibels(TRIM.fire)
 }
 
 /** Beyond this the fire is silent. */

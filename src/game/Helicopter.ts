@@ -310,17 +310,21 @@ const TURN_BANK = 0.3
 /** How quickly the lean follows the stick, per second. */
 const TILT_RESPONSE = 6
 
-/** Horizontal acceleration at full lean, and the drag that caps top speed. */
-const THRUST_ACCEL = 51
+/**
+ * Horizontal acceleration at full lean, and the drag that caps top speed. Both
+ * thrust figures are half again what they were (51 and 39): the map is big and
+ * the pilot was spending too much of the round just getting there.
+ */
+const THRUST_ACCEL = 76.5
 const DRAG = 1.1
-/** Top speed works out to THRUST_ACCEL / DRAG, about 46 units per second. */
+/** Top speed works out to THRUST_ACCEL / DRAG, about 69 units per second. */
 export const TOP_SPEED = THRUST_ACCEL / DRAG
 
 const YAW_RATE = 1.9
 const YAW_RESPONSE = 8
 
-/** Climb and descent: about 18 units per second flat out. */
-const COLLECTIVE_ACCEL = 39
+/** Climb and descent: about 27 units per second flat out. */
+const COLLECTIVE_ACCEL = 58.5
 const VERTICAL_DRAG = 2.2
 const VERTICAL_TERMINAL_SPEED = COLLECTIVE_ACCEL / VERTICAL_DRAG
 

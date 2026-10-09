@@ -270,8 +270,12 @@ const WORRYING_RANGE = 70
  * always be the one the Chief is shouting about.
  */
 const BANDS: readonly number[] = [55, 150, 300]
-/** A brisk direct flight, a little under the helicopter's top speed. */
-const PAR_SPEED = 30
+/**
+ * A brisk direct flight, a little under the helicopter's top speed (about 69).
+ * It was 30 when the top speed was 46, and moves with it: left alone, beating
+ * par would stop being worth anything.
+ */
+const PAR_SPEED = 45
 const PAR_SLACK = 10
 const QUICK_BONUS = 2
 const GENTLE_BONUS = 1

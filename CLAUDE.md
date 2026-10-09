@@ -112,7 +112,7 @@ hand is the collective and the pedals; the right hand is the cyclic.
 | nose down / up (forward / back) | `↑` / `↓` | right stick up / down |
 | slide (roll) | `←` / `→` | right stick left / right |
 
-Top speed is about 46 units a second and the collective moves you about 18 a
+Top speed is about 69 units a second and the collective moves you about 27 a
 second flat out. Browsers only list a controller once a button on it has been
 pressed; the HUD flashes its name when it comes live.
 
@@ -334,13 +334,20 @@ the rescue state; it reads, never decides.
   through an HRTF panner at its position, with the listener at the helicopter
   facing its heading. Direction and distance by ear. Silent while carrying.
 - **Voices** (`RadioVoice`) — lines are *read aloud* by the browser's speech
-  synthesiser, with each character's blip profile mapped to a pitch and a pace
-  (`speechFor`) and pinned to one of the installed voices by a hash of their
-  name. Speech bypasses the AudioContext, so the master volume has to be applied
-  to each utterance by hand and the ducking driven from its own start and end
-  events. Where there is no speech synthesis, `VoiceBlips` still does the old
-  Animal-Crossing blips — and the choice is made once at construction, because a
-  session that alternates between the two sounds broken.
+  synthesiser, with each character's blip profile mapped to a pitch (about half
+  of the synthesiser's range, so the voices sit under the helicopter) and a pace
+  (`speechFor`), and pinned to one of the installed **English** voices by a hash
+  of their name. English only: a machine with Japanese voices used to read the
+  Chief's jokes in Japanese, so every utterance has its `lang` set. Speech
+  bypasses the AudioContext, so the master volume has to be applied to each
+  utterance by hand and the ducking driven from its own start and end events —
+  and only the *current* utterance may drive it, because a cancelled line's end
+  event arrives late and used to un-duck the line that replaced it. Where the
+  browser has no English voice, `VoiceBlips` still does the old Animal-Crossing
+  blips. That choice is made **per line** (`SpeechVoices.canSpeakEnglish`): an
+  empty voice list means Chrome has not loaded it yet, not that there is none, so
+  it speaks; it flips to blips only when the list is known and holds no English,
+  or when a machine that reports no voices at all fails to speak.
 - **One-shots** (`SoundEffects`) — pickup chirps, delivery run + bell,
   touchdown thud, and a knock when pushed back by the field edge or ceiling
   (on a cooldown so it cannot machine-gun). Dragging through a canopy is paced
@@ -357,7 +364,8 @@ the rescue state; it reads, never decides.
   an altimeter. `windTargets()` is the pure mapping. It is kept under the
   rotor at all times: a loud bed that swells reads as the sound cutting out.
 - **Fire** (`FireSound`) — a crackling roar that swells within 170 m of the
-  flames, so you hear the fire before you see it.
+  flames, so you hear the fire before you see it. The crackle pops share its
+  output, so they come down with it.
 - **Radio ducking** (`Ducker`) — the beds dip to 55% while someone talks, for
   the blips' length plus a beat. Deeper and longer than that was heard as the
   engine cutting out.
@@ -365,6 +373,16 @@ the rescue state; it reads, never decides.
 Mix balance matters more than any single sound: the first play-test "sound
 cut out after pickup" was the parked rotor being too quiet next to a loud
 close-up call. `AudioEngine.level` reads the real output for checking this.
+
+The beds are pulled down by a trim table in `Mix.ts` (`TRIM`, in dB): fire −15,
+rotor −5, wind −5. Speech is outside the audio graph and no meter can see it, so
+the only way to make the characters easier to hear is to make everything else
+quieter. Each bed applies its trim in its own pure `*Output()` function, which
+`update()` calls — `SoundWiring.test.ts` reads what `update()` really asks for,
+because a trim nobody calls passes every pure test. The rotor's trim leaves its
+**idle floor alone** (`rotorOutput`): parked after a pickup it is all that is
+left in the mix, and cutting it is what made the sound seem to stop. Wind is
+trimmed with the rotor, since it was tuned to sit under it.
 
 Browsers refuse audio before a gesture, so `AudioEngine` starts on the first
 key or click and the HUD says so until then. In dev builds `window.__animalRescue`

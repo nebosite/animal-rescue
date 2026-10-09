@@ -117,8 +117,12 @@ function clamp(value: number, low: number, high: number): number {
 
 /** Within this of the pad, stop flying and start landing. */
 const ARRIVE_RADIUS = 14
-/** How much harder than a pilot the Chief flies a wreck home. */
-const FERRY_BOOST = 5
+/**
+ * How much harder than a pilot the Chief flies a wreck home. The pilot's own
+ * thrust is half again what it was, so the boost comes down by the same factor
+ * and the ferry flies exactly as it always did.
+ */
+const FERRY_BOOST = 5 / 1.5
 /** Boost is full beyond the first figure and gone by the second. */
 const FULL_BOOST_FROM = 220
 const SLOW_FROM = 55

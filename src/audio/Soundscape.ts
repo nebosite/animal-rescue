@@ -62,6 +62,8 @@ export class Soundscape {
     // paced from the rotor itself, so the two never drift apart.
     this.effects.setBladeRate(this.rotor.bladeHz)
     this.effects.advance(dt)
+    // Speech is outside the audio graph, so it has to be told the volume went off.
+    this.voice.frame()
 
     if (helicopter.justLanded) this.effects.touchdown()
     if (helicopter.justBumped) this.effects.bump()

@@ -92,8 +92,9 @@ describe('Fire', () => {
     expect(one.updraftAt(0, 0, COLUMN_HEIGHT + 1)).toBe(0)
     // Strong enough to beat full collective, which is what makes it a hazard
     // rather than a texture, and still a shove rather than a launch.
-    // Comparable to full collective (about 39), so over the hottest ground
-    // the pilot can barely hold altitude.
+    // Comparable to full collective (about 39 when this was set; 58 since the
+    // helicopter was sped up by half), so over the hottest ground the pilot
+    // can barely hold altitude. Worth a play-test whether it still bites.
     expect(Math.max(low, middling)).toBeGreaterThan(35)
     expect(Math.max(low, middling)).toBeLessThan(70)
   })

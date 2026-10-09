@@ -1,5 +1,6 @@
 import { TOP_SPEED } from '../game/Helicopter'
 import type { AudioEngine } from './AudioEngine'
+import { decibels, TRIM } from './Mix'
 import { createNoiseBuffer } from './NoiseBuffer'
 import type { Reverb } from './Reverb'
 
@@ -206,8 +207,18 @@ export class RotorSound {
     this.chop.frequency.setTargetAtTime(targets.chopHz, now, SMOOTHING)
     this.droneFilter.frequency.setTargetAtTime(targets.cutoffHz, now, SMOOTHING)
     this.whine.frequency.setTargetAtTime(targets.whineHz, now, SMOOTHING)
-    this.output.gain.setTargetAtTime(targets.gain, now, SMOOTHING)
+    this.output.gain.setTargetAtTime(rotorOutput(targets.gain), now, SMOOTHING)
   }
+}
+
+/**
+ * What actually reaches the mix: the trim applies to the sound that comes from
+ * working, and the idle floor is left alone. Parked after a pickup the rotor is
+ * all that is left, and an idle that is cut falls under the level that read as
+ * "the sound stopped" in play-testing.
+ */
+export function rotorOutput(gain: number): number {
+  return IDLE_GAIN + (gain - IDLE_GAIN) * decibels(TRIM.rotor)
 }
 
 function clamp01(value: number): number {

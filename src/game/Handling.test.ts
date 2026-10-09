@@ -22,7 +22,7 @@ describe('Handling', () => {
   })
 
   it('lets a gentle, feathered descent land without complaint', () => {
-    const events = fly(new Helicopter(), new Handling(0.5), { collective: -0.3 }, 4)
+    const events = fly(new Helicopter(), new Handling(0.5), { collective: -0.2 }, 4)
     expect(events).toEqual([])
   })
 

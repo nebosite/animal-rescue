@@ -1,5 +1,6 @@
 import { TOP_SPEED } from '../game/Helicopter'
 import type { AudioEngine } from './AudioEngine'
+import { decibels, TRIM } from './Mix'
 import { createNoiseBuffer } from './NoiseBuffer'
 
 /** How much wind, and how high it whistles, for a given altitude and speed. */
@@ -85,9 +86,14 @@ export class WindSound {
   update(altitude: number, speed: number): void {
     const targets = windTargets(altitude, speed)
     const now = this.context.currentTime
-    this.output.gain.setTargetAtTime(targets.gain, now, SMOOTHING)
+    this.output.gain.setTargetAtTime(windOutput(targets.gain), now, SMOOTHING)
     this.filter.frequency.setTargetAtTime(targets.centerHz, now, SMOOTHING)
   }
+}
+
+/** What reaches the mix: wind is trimmed with the rotor so it stays under it. */
+export function windOutput(gain: number): number {
+  return gain * decibels(TRIM.wind)
 }
 
 function clamp01(value: number): number {
