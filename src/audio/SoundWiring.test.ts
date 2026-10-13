@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { TOP_SPEED } from '../game/Helicopter'
-import type { AudioEngine } from './AudioEngine'
 import { FireSound, fireOutput } from './FireSound'
 import { decibels, TRIM } from './Mix'
+import { recordingAudio, type RecordedNode } from './RecordingAudio'
 import { RotorSound, rotorOutput, rotorTargets } from './RotorSound'
 import { WindSound, windOutput, windTargets } from './WindSound'
 
@@ -13,66 +13,13 @@ import { WindSound, windOutput, windTargets } from './WindSound'
  * sounds against a recording stand-in for the audio context, run the real
  * `update()`, and read what it asked the output gain to become.
  */
-interface Recorded {
-  kind: string
-  /** Every value given to `setTargetAtTime`, by parameter name. */
-  targets: Map<string, number[]>
-}
-
-function recordingEngine(): { engine: AudioEngine; nodes: Recorded[] } {
-  const nodes: Recorded[] = []
-
-  const makeNode = (kind: string): unknown => {
-    const record: Recorded = { kind, targets: new Map() }
-    nodes.push(record)
-    const store: Record<string, unknown> = {}
-    const param = (name: string) => ({
-      value: 0,
-      setTargetAtTime(value: number) {
-        const list = record.targets.get(name) ?? []
-        list.push(value)
-        record.targets.set(name, list)
-      },
-      setValueAtTime() {},
-      linearRampToValueAtTime() {},
-      exponentialRampToValueAtTime() {},
-      cancelScheduledValues() {},
-    })
-    return new Proxy({}, {
-      get(_target, prop: string) {
-        if (prop === 'connect') return (destination: unknown) => destination
-        if (prop === 'disconnect' || prop === 'start' || prop === 'stop') return () => {}
-        // Anything else is either a property that was set (type, buffer) or an
-        // audio parameter (gain, frequency, Q), made on first touch.
-        if (!(prop in store)) store[prop] = param(prop)
-        return store[prop]
-      },
-      set(_target, prop: string, value) {
-        store[prop] = value
-        return true
-      },
-    })
-  }
-
-  const context = new Proxy({}, {
-    get(_target, prop: string) {
-      if (prop === 'sampleRate') return 8000
-      if (prop === 'currentTime') return 0
-      if (prop === 'destination') return makeNode('destination')
-      if (prop === 'createBuffer') {
-        return (_channels: number, length: number) => ({ getChannelData: () => new Float32Array(length) })
-      }
-      if (prop.startsWith('create')) return () => makeNode(prop)
-      return undefined
-    },
-  })
-
-  const engine = { context, master: makeNode('master') } as unknown as AudioEngine
+function recordingEngine() {
+  const { engine, nodes } = recordingAudio()
   return { engine, nodes }
 }
 
 /** Each sound makes its output gain first, so it is the first gain node built. */
-function outputTargets(nodes: Recorded[]): number[] {
+function outputTargets(nodes: RecordedNode[]): number[] {
   const output = nodes.find((node) => node.kind === 'createGain')
   return output?.targets.get('gain') ?? []
 }

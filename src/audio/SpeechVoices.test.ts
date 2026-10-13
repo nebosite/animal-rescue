@@ -321,6 +321,100 @@ describe('SpeechVoices', () => {
     })
   })
 
+  describe('the events a radio frame hangs off', () => {
+    function watched(synthVoices: string[] = ['One']) {
+      const synth = fakeSynth(synthVoices)
+      const log: string[] = []
+      let volume = 1
+      const voices = new SpeechVoices(
+        () => volume, () => {}, synth,
+        { queued: () => log.push('queued'), ended: () => log.push('ended'), cancelled: () => log.push('cancelled') },
+      )
+      return { synth, log, voices, setVolume: (v: number) => { volume = v } }
+    }
+
+    it('queues when a line is spoken, and ends when it finishes', () => {
+      const { synth, log, voices } = watched()
+      voices.speak('Chief', CHIEF.voice, 'line')
+      expect(log).toEqual(['queued'])
+      synth.spoken[0].onend?.(event)
+      expect(log).toEqual(['queued', 'ended'])
+    })
+
+    it('treats a line that failed as dropped, not as a mic released', () => {
+      // No tick for a call that never happened.
+      const { synth, log, voices } = watched()
+      voices.speak('Chief', CHIEF.voice, 'line')
+      synth.spoken[0].onerror?.(null as unknown as SpeechSynthesisErrorEvent)
+      expect(log).toEqual(['queued', 'cancelled'])
+    })
+
+    it('drops the frame, but not the line, when voices are listed and it is slow to start', () => {
+      // Otherwise the listener gets static and no voice for the whole ceiling.
+      vi.useFakeTimers()
+      try {
+        const { synth, log, voices } = watched()
+        voices.speak('Chief', CHIEF.voice, 'line')
+        vi.advanceTimersByTime(6000)
+        expect(log).toEqual(['queued', 'cancelled'])
+        // It may still speak, late: a slow network voice is not a broken one.
+        expect(voices.canSpeakEnglish).toBe(true)
+        synth.spoken[0].onend?.(event)
+        expect(log).toEqual(['queued', 'cancelled', 'ended'])
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('leaves the frame alone when the line starts in time', () => {
+      vi.useFakeTimers()
+      try {
+        const { synth, log, voices } = watched()
+        voices.speak('Chief', CHIEF.voice, 'line')
+        synth.spoken[0].onstart?.(event)
+        vi.advanceTimersByTime(30000)
+        expect(log).toEqual(['queued'])
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it("re-queues for a line that replaces another, and ignores the old line's late end", () => {
+      // Otherwise the replaced line's end would drop the frame mid-way through
+      // the new one.
+      const { synth, log, voices } = watched()
+      voices.speak('Chief', CHIEF.voice, 'first')
+      voices.speak('Bram', FERRET.voice, 'second')
+      synth.spoken[0].onend?.(event)
+      expect(log).toEqual(['queued', 'queued'])
+    })
+
+    it('cancels when silenced, and does not end the line it cut off', () => {
+      const { synth, log, voices } = watched()
+      voices.speak('Chief', CHIEF.voice, 'line')
+      voices.silence()
+      synth.spoken[0].onend?.(event)
+      expect(log).toEqual(['queued', 'cancelled'])
+    })
+
+    it('cancels, and never queues, when the volume is off', () => {
+      const { synth, log, voices, setVolume } = watched()
+      voices.speak('Chief', CHIEF.voice, 'first')
+      setVolume(0)
+      voices.speak('Chief', CHIEF.voice, 'second')
+      expect(log).toEqual(['queued', 'cancelled'])
+      expect(synth.spoken).toHaveLength(1)
+    })
+
+    it('cancels when the volume goes off mid-line', () => {
+      const { log, voices, setVolume } = watched()
+      voices.speak('Chief', CHIEF.voice, 'line')
+      setVolume(0)
+      voices.checkLevel()
+      expect(log).toEqual(['queued', 'cancelled'])
+    })
+  })
+
   describe('when the volume goes off', () => {
     it('stops a line that is already being read, because the master gain cannot reach it', () => {
       const synth = fakeSynth(['One'])

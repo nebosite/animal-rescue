@@ -11,6 +11,9 @@ export function decibels(db: number): number {
  * only way to make characters easier to hear is to make everything else
  * quieter. The fire and the rotor were drowning the radio.
  *
+ * The radio frame (squelch and static around a spoken line) is trimmed here too,
+ * so it can be tuned against the voice it frames.
+ *
  * Wind follows the rotor: it was tuned to sit under it, and cutting the rotor
  * alone would leave the weather louder than the machine.
  */
@@ -18,4 +21,5 @@ export const TRIM = {
   fire: -15,
   rotor: -5,
   wind: -5,
+  radio: -6,
 }

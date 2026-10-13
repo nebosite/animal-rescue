@@ -1,6 +1,7 @@
 import type { VoiceProfile } from '../game/AnimalProfile'
 import type { AudioEngine } from './AudioEngine'
 import type { Ducker } from './Ducker'
+import { RadioFrame } from './RadioFrame'
 import type { Reverb } from './Reverb'
 import { SpeechVoices } from './SpeechVoices'
 import { VoiceBlips } from './VoiceBlips'
@@ -14,6 +15,10 @@ import { VoiceBlips } from './VoiceBlips'
  * synthesis is the least dependable thing in a browser: it is absent on some,
  * silent until a gesture on others, and has no installed voices at all on a
  * bare Linux box. So the blips stay, as the thing that always works.
+ *
+ * A spoken line is framed as a radio call (`RadioFrame`: squelch, static, a tick
+ * on release) because the browser's voice is outside the audio graph and there
+ * is nothing to run a radio filter on. The blips have their own radio chain.
  *
  * Speech is English only. The choice between speech and blips is made per line,
  * but it only ever changes once in practice: while the browser's voice list is
@@ -34,7 +39,13 @@ export class RadioVoice {
     parts?: { speech?: SpeechVoices; blips?: Pick<VoiceBlips, 'speak'> },
   ) {
     this.blips = parts?.blips ?? new VoiceBlips(engine, reverb, ducker)
-    this.speech = parts?.speech ?? new SpeechVoices(
+    this.speech = parts?.speech ?? RadioVoice.spokenVoices(engine, ducker)
+  }
+
+  /** Browser speech, framed as a radio call and ducking the beds while it talks. */
+  private static spokenVoices(engine: AudioEngine, ducker?: Ducker): SpeechVoices {
+    const frame = new RadioFrame(engine)
+    return new SpeechVoices(
       // Speech bypasses the AudioContext entirely, so the master volume and
       // the mute button have to be applied to the utterance by hand.
       () => (engine.muted ? 0 : engine.volume),
@@ -44,6 +55,10 @@ export class RadioVoice {
         if (talking) ducker?.duck(DUCK_WHILE_TALKING)
         else ducker?.release()
       },
+      undefined, // the browser's own synthesiser
+      // The frame is keyed by the same lines that duck the beds, but from the
+      // moment a line is queued, since a network voice can take a second to start.
+      { queued: () => frame.open(), ended: () => frame.close(), cancelled: () => frame.cancel() },
     )
   }
 

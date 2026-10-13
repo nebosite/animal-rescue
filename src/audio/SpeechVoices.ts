@@ -17,6 +17,24 @@ export interface SpeechLike {
 }
 
 /**
+ * What a spoken line is doing, for whatever frames it (the radio squelch). Every
+ * call is about the *current* line only; a cancelled line's late events are
+ * dropped before they get here.
+ */
+export interface SpeechEvents {
+  /** A line is about to be spoken. Fires for each line, including one that replaces another. */
+  queued(): void
+  /** The current line finished, or failed. */
+  ended(): void
+  /**
+   * The current line was cut off, never got going, or failed outright; or the one
+   * before it was cut off and nothing new is coming. Also fired when nothing is
+   * playing, which a listener must treat as a no-op.
+   */
+  cancelled(): void
+}
+
+/**
  * Turns a character's blip profile into pitch and pace for a real synthesised
  * voice, so Gus still rumbles and Bram still gabbles.
  *
@@ -81,6 +99,7 @@ export class SpeechVoices {
     /** Dip the beds while talking, and let them back up afterwards. */
     private readonly onTalking: (talking: boolean) => void = () => {},
     synth: SpeechLike | null = browserSpeech(),
+    private readonly events?: SpeechEvents,
   ) {
     this.synth = synth
     if (!synth) return
@@ -127,6 +146,7 @@ export class SpeechVoices {
     if (volume <= 0) {
       // Nothing new is coming to end the duck, and the cancelled line no longer
       // counts, so let the beds back up here.
+      this.events?.cancelled()
       this.onTalking(false)
       return
     }
@@ -148,26 +168,35 @@ export class SpeechVoices {
       this.stopWatchdog()
       this.onTalking(true)
     }
-    utterance.onend = () => this.finish(utterance)
+    utterance.onend = () => this.finish(utterance, false)
     utterance.onerror = (event) => {
       // With no voices on record, an engine that cannot speak at all is the
       // bare-machine case. A cancelled line is just us moving on.
       if (this.current === utterance && this.installed.length === 0 && UNABLE_TO_SPEAK.includes(event?.error)) {
         this.broken = true
       }
-      this.finish(utterance)
+      this.finish(utterance, true)
     }
     this.current = utterance
     this.synth.speak(utterance)
+    // After the call, so a speak() that throws cannot leave the frame hissing.
+    // Events arrive later than this, never inside it.
+    this.events?.queued()
 
-    // An engine with nothing to say it with can also just never start.
-    if (this.installed.length === 0) {
-      this.watchdog = setTimeout(() => {
-        if (this.current !== utterance) return
+    // A line can also just never start. With no voices on record that means the
+    // engine has nothing to speak with at all. With voices listed it is more
+    // likely slow or stalled, and may still speak, so only the radio frame is
+    // dropped: otherwise the listener gets static and no voice for the full
+    // ceiling.
+    this.watchdog = setTimeout(() => {
+      if (this.current !== utterance) return
+      if (this.installed.length === 0) {
         this.broken = true
         this.silence()
-      }, START_TIMEOUT_MS)
-    }
+      } else {
+        this.events?.cancelled()
+      }
+    }, START_TIMEOUT_MS)
   }
 
   /**
@@ -184,14 +213,18 @@ export class SpeechVoices {
     this.current = null
     this.stopWatchdog()
     this.synth?.cancel()
+    this.events?.cancelled()
     this.onTalking(false)
   }
 
   /** A line ended or failed. Only the current one is allowed to say so. */
-  private finish(utterance: SpeechSynthesisUtterance): void {
+  private finish(utterance: SpeechSynthesisUtterance, failed: boolean): void {
     if (this.current !== utterance) return
     this.current = null
     this.stopWatchdog()
+    // A line that failed was never a call: no tick for the mic being released.
+    if (failed) this.events?.cancelled()
+    else this.events?.ended()
     this.onTalking(false)
   }
 

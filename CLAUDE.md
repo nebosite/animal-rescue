@@ -347,7 +347,16 @@ the rescue state; it reads, never decides.
   blips. That choice is made **per line** (`SpeechVoices.canSpeakEnglish`): an
   empty voice list means Chrome has not loaded it yet, not that there is none, so
   it speaks; it flips to blips only when the list is known and holds no English,
-  or when a machine that reports no voices at all fails to speak.
+  or when a machine that reports no voices at all fails to speak. Each spoken
+  line is framed as a walkie-talkie call by `RadioFrame`: a squelch burst when
+  the line is queued, a bed of static under it, and a tick when it ends (a line
+  that is cut off or fails drops quietly, with no tick). The browser's voice
+  cannot be filtered, so the frame surrounds it; the blips have their own radio
+  chain. `SpeechVoices` reports `queued`/`ended`/`cancelled` (`SpeechEvents`)
+  for the current utterance only, by the same rule as the ducking. The static's
+  fade-out is scheduled on the audio clock the moment it starts, at a 12 s
+  ceiling, so a missing end event cannot leave it hissing; a line that never
+  starts has its frame dropped after 5 s.
 - **One-shots** (`SoundEffects`) — pickup chirps, delivery run + bell,
   touchdown thud, and a knock when pushed back by the field edge or ceiling
   (on a cooldown so it cannot machine-gun). Dragging through a canopy is paced
@@ -368,21 +377,26 @@ the rescue state; it reads, never decides.
   output, so they come down with it.
 - **Radio ducking** (`Ducker`) — the beds dip to 55% while someone talks, for
   the blips' length plus a beat. Deeper and longer than that was heard as the
-  engine cutting out.
+  engine cutting out. The radio frame goes straight to the master, not through
+  the ducker, because it is part of the talking.
 
 Mix balance matters more than any single sound: the first play-test "sound
 cut out after pickup" was the parked rotor being too quiet next to a loud
 close-up call. `AudioEngine.level` reads the real output for checking this.
 
 The beds are pulled down by a trim table in `Mix.ts` (`TRIM`, in dB): fire −15,
-rotor −5, wind −5. Speech is outside the audio graph and no meter can see it, so
-the only way to make the characters easier to hear is to make everything else
-quieter. Each bed applies its trim in its own pure `*Output()` function, which
+rotor −5, wind −5, radio −6. Speech is outside the audio graph and no meter can
+see it, so the only way to make the characters easier to hear is to make
+everything else quieter. Each bed applies its trim in its own pure `*Output()` function, which
 `update()` calls — `SoundWiring.test.ts` reads what `update()` really asks for,
 because a trim nobody calls passes every pure test. The rotor's trim leaves its
 **idle floor alone** (`rotorOutput`): parked after a pickup it is all that is
 left in the mix, and cutting it is what made the sound seem to stop. Wind is
-trimmed with the rotor, since it was tuned to sit under it.
+trimmed with the rotor, since it was tuned to sit under it. The radio frame is
+not a bed: it applies its own trim once, to its output gain, and is tested in
+`RadioFrame.test.ts` against `RecordingAudio` — a stand-in audio context that
+records what a sound did, so code that cannot run in Node can still be driven
+through its real path and asked.
 
 Browsers refuse audio before a gesture, so `AudioEngine` starts on the first
 key or click and the HUD says so until then. In dev builds `window.__animalRescue`
