@@ -36,21 +36,26 @@ describe('GamepadInput', () => {
     expect(withPad(fakePad({ id: 'Xbox Wireless Controller' })).name).toBe('Xbox Wireless Controller')
   })
 
-  it('left stick is the collective and the pedals: up climbs, right turns right', () => {
+  it('left stick flies forward and back and turns: up is nose forward, right turns right', () => {
     const input = withPad(fakePad({ axes: [1, -1, 0, 0] }))
     expect(input.connected).toBe(true)
-    expect(input.input.collective).toBeCloseTo(1)
+    expect(input.input.pitch).toBeCloseTo(1)
     expect(input.input.yaw).toBeCloseTo(1)
-    expect(input.input.pitch).toBe(0)
+    expect(input.input.collective).toBe(0)
     expect(input.input.roll).toBe(0)
   })
 
-  it('right stick is the cyclic: up is nose forward, right is a slide right', () => {
+  it('right stick is the elevator and the slide: up climbs, right slides right', () => {
     const input = withPad(fakePad({ axes: [0, 0, 1, -1] }))
-    expect(input.input.pitch).toBeCloseTo(1)
+    expect(input.input.collective).toBeCloseTo(1)
     expect(input.input.roll).toBeCloseTo(1)
-    expect(input.input.collective).toBe(0)
+    expect(input.input.pitch).toBe(0)
     expect(input.input.yaw).toBe(0)
+  })
+
+  it('pulling the right stick back descends and the left stick back flies backwards', () => {
+    expect(withPad(fakePad({ axes: [0, 0, 0, 1] })).input.collective).toBeCloseTo(-1)
+    expect(withPad(fakePad({ axes: [0, 1, 0, 0] })).input.pitch).toBeCloseTo(-1)
   })
 
   it('still takes the triggers as collective and the bumpers as yaw', () => {
@@ -67,8 +72,8 @@ describe('GamepadInput', () => {
   })
 
   it('sums stick and trigger, clamped to full deflection', () => {
-    expect(withPad(fakePad({ axes: [0, -1, 0, 0], buttons: { 7: 1 } })).input.collective).toBe(1)
-    expect(withPad(fakePad({ axes: [0, -1, 0, 0], buttons: { 6: 1 } })).input.collective).toBeCloseTo(0)
+    expect(withPad(fakePad({ axes: [0, 0, 0, -1], buttons: { 7: 1 } })).input.collective).toBe(1)
+    expect(withPad(fakePad({ axes: [0, 0, 0, -1], buttons: { 6: 1 } })).input.collective).toBeCloseTo(0)
   })
 
   it('applies a dead zone so a resting stick reads as exactly zero', () => {

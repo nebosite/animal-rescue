@@ -20,9 +20,9 @@ any button on it and the game will say hello.
 
 | | Keyboard | Controller |
 |---|---|---|
-| climb / descend | `W` / `S` | left stick up / down, or the triggers |
+| climb / descend | `W` / `S` | right stick up / down, or the triggers |
 | turn | `A` / `D` | left stick left / right, or the bumpers |
-| nose forward / back | `↑` / `↓` | right stick up / down |
+| nose forward / back | `↑` / `↓` | left stick up / down |
 | slide | `←` / `→` | right stick left / right |
 
 Stay out of the fire and above the trees. Wreck the helicopter badly enough

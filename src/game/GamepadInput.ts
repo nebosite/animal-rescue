@@ -16,8 +16,8 @@ export type GamepadSource = () => ReadonlyArray<GamepadLike | null>
  * "standard" layout that Xbox and PlayStation pads report in every browser,
  * as two sticks — the same scheme as the keyboard:
  *
- *   left stick     collective up and down, yaw left and right
- *   right stick    the cyclic: pitch forward and back, roll left and right
+ *   left stick     pitch forward and back, yaw left and right
+ *   right stick    collective up and down, roll left and right
  *   triggers       collective too — right climbs, left descends
  *   bumpers        yaw too
  *
@@ -54,9 +54,9 @@ export class GamepadInput {
     const rightX = deadZone(axis(pad, 2))
     const rightUp = deadZone(-axis(pad, 3))
 
-    this.input.collective = clampAxis(leftUp + trigger(pad, RIGHT_TRIGGER) - trigger(pad, LEFT_TRIGGER))
+    this.input.collective = clampAxis(rightUp + trigger(pad, RIGHT_TRIGGER) - trigger(pad, LEFT_TRIGGER))
     this.input.yaw = clampAxis(leftX + button(pad, RIGHT_BUMPER) - button(pad, LEFT_BUMPER))
-    this.input.pitch = rightUp
+    this.input.pitch = leftUp
     this.input.roll = rightX
   }
 }

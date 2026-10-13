@@ -103,9 +103,12 @@ export class SoundEffects {
     // which quietly ran the whole thing about a tenth slow.
     this.sinceFoliage = this.sinceFoliage > every * 2 ? 0 : this.sinceFoliage - every
     const now = this.context.currentTime
-    this.burst('highpass', 1700, now, 0.07, 0.42)
-    this.burst('bandpass', 700, now + 0.012, 0.05, 0.3)
-    this.tone('triangle', 220, 150, now, 0.045, 0.16)
+    // A sharp, noisy crack: wide white noise with the bottom barely cut, then a
+    // bright snap on top of it. The tone that used to sit under it made the hit
+    // sound like a note; it is now only a faint thump so the ear hears noise.
+    this.burst('highpass', 250, now, 0.03, 0.55)
+    this.burst('highpass', 2200, now + 0.012, 0.022, 0.4)
+    this.tone('triangle', 200, 140, now, 0.03, 0.06)
   }
 
   private tone(type: OscillatorType, fromHz: number, toHz: number, at: number, seconds: number, peak: number): void {

@@ -12,20 +12,15 @@ export class VolumeControl {
     private readonly button: HTMLButtonElement,
     private readonly slider: HTMLInputElement,
   ) {
-    const saved = loadSetting()
-    engine.setVolume(saved.volume)
-    engine.setMuted(saved.muted)
-    slider.value = String(saved.volume)
+    const start = startingSetting(loadSetting())
+    engine.setVolume(start.volume)
+    engine.setMuted(start.muted)
+    slider.value = String(start.volume)
 
     button.addEventListener('click', () => {
-      const unmuting = engine.muted
-      engine.setMuted(!engine.muted)
-      // Unmuting has to produce sound, always. The slider is one click away
-      // from zero and the setting is remembered between visits, so a stray
-      // click on the left of it leaves the game permanently silent — and the
-      // one thing anybody tries, pressing the mute button twice, does nothing
-      // whatever, because unmuting a volume of zero is still zero.
-      if (unmuting && engine.volume <= 0) this.setVolume(RECOVERED_VOLUME)
+      const next = afterButton({ volume: engine.volume, muted: engine.muted })
+      this.setVolume(next.volume)
+      engine.setMuted(next.muted)
       this.render()
       this.save()
       button.blur()
@@ -66,7 +61,35 @@ export class VolumeControl {
   }
 }
 
-function loadSetting(): { volume: number; muted: boolean } {
+/** What the player has the audio set to. */
+export interface AudioSetting {
+  volume: number
+  muted: boolean
+}
+
+/**
+ * What the game starts with. Never silent: a game that opens with its speaker
+ * showing off, and nothing to hear until the button has been pressed twice, reads
+ * as broken. The volume is remembered between visits, but a mute is not — and a
+ * volume remembered as zero (a stray click on the left of the slider) starts at
+ * a sensible level instead of trapping the player in silence.
+ */
+export function startingSetting(saved: AudioSetting): AudioSetting {
+  return { volume: saved.volume > 0 ? saved.volume : RECOVERED_VOLUME, muted: false }
+}
+
+/**
+ * What one press of the speaker button does. If the game is silent, in either
+ * way — muted, or the slider at zero — the press turns the sound on, and it
+ * always works the first time. Otherwise it mutes.
+ */
+export function afterButton(current: AudioSetting): AudioSetting {
+  const silent = current.muted || current.volume <= 0
+  if (!silent) return { volume: current.volume, muted: true }
+  return { volume: current.volume > 0 ? current.volume : RECOVERED_VOLUME, muted: false }
+}
+
+function loadSetting(): AudioSetting {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {

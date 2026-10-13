@@ -102,14 +102,16 @@ in, and thrust comes from the lean — so it tips before it goes and drifts when
 released. Forward is wherever the nose points; the chase camera swings round
 behind the tail with a little lag.
 
-Two sticks, one per hand — the same on keyboard and controller. The left
-hand is the collective and the pedals; the right hand is the cyclic.
+Two sticks, one per hand. On the keyboard the left hand (WASD) is the
+collective and the pedals and the right hand (arrows) is the cyclic. A controller
+is laid out differently, on purpose: the left stick flies the nose (forward and
+back) and turns, and the right stick is the elevator (up and down) and the slide.
 
 | | Keyboard | Controller (standard layout) |
 |---|---|---|
-| climb / descend (collective) | `W` / `S` | left stick up / down, or `RT` / `LT` |
+| climb / descend (collective) | `W` / `S` | right stick up / down, or `RT` / `LT` |
 | turn (yaw) | `A` / `D` | left stick left / right, or `LB` / `RB` |
-| nose down / up (forward / back) | `↑` / `↓` | right stick up / down |
+| nose down / up (forward / back) | `↑` / `↓` | left stick up / down |
 | slide (roll) | `←` / `→` | right stick left / right |
 
 Top speed is about 69 units a second and the collective moves you about 27 a
@@ -402,6 +404,16 @@ Browsers refuse audio before a gesture, so `AudioEngine` starts on the first
 key or click and the HUD says so until then. In dev builds `window.__animalRescue`
 exposes the engine, soundscape, helicopter and controls so a browser-driving
 test can put an analyser on the master bus and listen.
+
+## Metrics
+
+Anonymous usage counts go to Google Analytics 4 (`telemetry/Analytics.ts`,
+measurement id in `main.ts`): page views for free, plus `game_start`,
+`animal_rescued` (animal, credit) and `shift_end` (reason, score, rescued).
+Only a production build reports; `npm run dev` and the tests send nothing, so
+play-testing does not pollute the numbers. The game calls `Analytics`, never
+`gtag`, so what is recorded is tested with a stand-in sender. Add an event only
+when there is a question it answers.
 
 ## Commands
 

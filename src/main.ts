@@ -24,6 +24,7 @@ import { Soundscape } from './audio/Soundscape'
 import { VolumeControl } from './ui/VolumeControl'
 import { RadioPanel } from './ui/RadioPanel'
 import { RestartInput } from './game/RestartInput'
+import { Analytics } from './telemetry/Analytics'
 
 const world = new World()
 const helicopter = new Helicopter()
@@ -101,6 +102,7 @@ audio.onStart(() => {
   radio.say(announcer.welcome())
   radio.say(announcer.ferret('welcome'))
   underway = true
+  analytics.event('game_start')
 })
 new VolumeControl(
   audio,
@@ -236,6 +238,7 @@ renderer.setAnimationLoop(() => {
         const extras = bonuses.length ? `  ·  ${bonuses.join('  ·  ')}` : ''
         hud.flash(`${animal.name.toUpperCase()} RESCUED!  +${credited}${extras}`)
         soundscape?.delivered()
+        analytics.event('animal_rescued', { animal: animal.name, credit: credited })
         radio.say(announcer.delivered(animal, scolded))
         presentAnimals()
         break
@@ -487,6 +490,7 @@ function endShift(why: 'time' | 'wrecked' = 'time'): void {
       ? 'nobody came home — next time, follow the amber flares'
       : paint
   hud.showShiftEnd(rescue.score, rescue.rescued, detail)
+  analytics.event('shift_end', { reason: why, score: rescue.score, rescued: rescue.rescued })
   hud.flash(why === 'wrecked' ? 'HELICOPTER WRITTEN OFF — SHIFT OVER' : 'SHIFT OVER')
   radio.say(announcer.shiftOver(rescue.rescued))
 }
@@ -663,6 +667,13 @@ const HUD_PANELS = [
   document.getElementById('radio')!,
   document.getElementById('status')!,
 ]
+
+/**
+ * Anonymous usage counts: how many play, how far they get, how a shift ends.
+ * Only a production build reports; development and tests send nothing.
+ */
+const MEASUREMENT_ID = 'G-1BKFJPXQYE'
+const analytics = import.meta.env.PROD ? Analytics.load(MEASUREMENT_ID) : Analytics.off()
 
 // Reused so the render loop is not allocating a vector every frame.
 const PLACE = new THREE.Vector3()

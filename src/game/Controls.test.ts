@@ -26,8 +26,8 @@ describe('Controls', () => {
   })
 
   it('merges keyboard and controller, clamped to full deflection', () => {
-    // Right stick forward on the pad, up arrow on the keyboard: still just 1.
-    const controls = new Controls(new GamepadInput(() => [pad([0, 0, 0, -1])]))
+    // Left stick forward on the pad, up arrow on the keyboard: still just 1.
+    const controls = new Controls(new GamepadInput(() => [pad([0, -1, 0, 0])]))
     controls.keyboard.press('ArrowUp', true)
     const input = controls.poll()
     expect(input.pitch).toBe(1)
@@ -35,7 +35,7 @@ describe('Controls', () => {
   })
 
   it('lets one device cancel the other', () => {
-    const controls = new Controls(new GamepadInput(() => [pad([0, 0, 0, 1])])) // right stick pulled back
+    const controls = new Controls(new GamepadInput(() => [pad([0, 1, 0, 0])])) // left stick pulled back
     controls.keyboard.press('ArrowUp', true)
     expect(controls.poll().pitch).toBe(0)
   })
