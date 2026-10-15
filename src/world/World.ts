@@ -17,6 +17,7 @@ import { Debris } from './Debris'
 import { FireParticles } from './FireParticles'
 import { GroundShadow } from './GroundShadow'
 import { ShadowRig } from './ShadowRig'
+import type { Sky } from '../game/TimeOfDay'
 import { Plain } from './Plain'
 import { SiteFinder } from '../game/SiteFinder'
 import { FIELD_LIMIT } from '../game/Helicopter'
@@ -54,6 +55,10 @@ export class World {
   /** Needles and bark knocked out of the canopy by a clumsy approach. */
   readonly debris = new Debris()
   readonly sun: THREE.DirectionalLight
+  private readonly ambient: THREE.AmbientLight
+  private readonly bounce: THREE.HemisphereLight
+  /** Which way the sun lies on the ground; its height is what the hour changes. */
+  private readonly sunAzimuth = new THREE.Vector2(180, 120).normalize()
   /** Keeps the sun's shadow box over the helicopter; trees cast onto the land through it. */
   readonly shadows: ShadowRig
   /** The helicopter's own shadow, for reading height on the way down. */
@@ -82,13 +87,14 @@ export class World {
     // A bright, clear day: the game is meant to be playful, and a dusk palette
     // read as gloomy in play-testing. The fire still carries against it because
     // the flames are additive and the smoke is dark.
-    this.scene.add(new THREE.AmbientLight(0xe4f1ff, 1.5))
+    this.ambient = new THREE.AmbientLight(0xe4f1ff, 1.5)
+    this.scene.add(this.ambient)
     this.sun = new THREE.DirectionalLight(0xfff3d9, 2.7)
     this.sun.position.set(180, 420, 120)
     this.scene.add(this.sun, this.sun.target)
     this.shadows = new ShadowRig(this.sun)
-    const bounce = new THREE.HemisphereLight(0xaee0ff, 0x86b85a, 0.8)
-    this.scene.add(bounce)
+    this.bounce = new THREE.HemisphereLight(0xaee0ff, 0x86b85a, 0.8)
+    this.scene.add(this.bounce)
 
     this.terrainMesh = new TerrainMesh(this.terrain)
     this.scene.add(this.terrainMesh.mesh)
@@ -175,6 +181,29 @@ export class World {
     this.treeCover.regrow()
     this.forest.restore()
     this.terrainMesh.unscorch()
+  }
+
+  /**
+   * Dress the world for an hour of the day: the sun's height and colour, the
+   * sky and fog, and how hard the fire's own light is pushed.
+   */
+  setSky(sky: Sky): void {
+    const elevation = THREE.MathUtils.degToRad(sky.elevation)
+    this.shadows.setDirection(new THREE.Vector3(
+      Math.cos(elevation) * this.sunAzimuth.x,
+      Math.sin(elevation),
+      Math.cos(elevation) * this.sunAzimuth.y,
+    ))
+    this.sun.color.setHex(sky.sunColor)
+    this.sun.intensity = sky.sunIntensity
+    this.ambient.color.setHex(sky.ambientColor)
+    this.ambient.intensity = sky.ambientIntensity
+    this.bounce.color.setHex(sky.hemiSky)
+    this.bounce.groundColor.setHex(sky.hemiGround)
+    this.bounce.intensity = sky.hemiIntensity
+    ;(this.scene.background as THREE.Color).setHex(sky.skyColor)
+    ;(this.scene.fog as THREE.Fog).color.setHex(sky.skyColor)
+    this.fireField.setGlow(sky.fireGlow)
   }
 
   /**

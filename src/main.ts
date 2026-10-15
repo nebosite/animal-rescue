@@ -13,6 +13,7 @@ import { Airframe } from './game/Airframe'
 import { Cooldown } from './game/Cooldown'
 import { Campaign } from './game/Campaign'
 import { HeatGauge } from './game/HeatGauge'
+import { skyForLevel } from './game/TimeOfDay'
 import { ROSTER } from './game/AnimalProfile'
 import { rosterBoard } from './game/RosterBoard'
 import { Shift } from './game/Shift'
@@ -167,6 +168,7 @@ const timer = new THREE.Timer()
 timer.connect(document)
 
 presentAnimals()
+world.setSky(skyForLevel(campaign.level))
 
 renderer.setAnimationLoop(() => {
   timer.update()
@@ -569,6 +571,7 @@ function flyAnother(): void {
     rescue.startLevel(campaign.party)
   }
   gameOver = false
+  world.setSky(skyForLevel(campaign.level))
   shift.restart()
   airframe.repair()
   tank.fill()

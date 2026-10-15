@@ -68,10 +68,15 @@ export class FireField {
 
     // Only a few patches get a light: WebGL does not want dozens.
     for (let i = 0; i < GLOW_LIGHTS; i++) {
-      const light = new THREE.PointLight(GLOW_COLOR, 900, 300, 2)
+      const light = new THREE.PointLight(GLOW_COLOR, GLOW_INTENSITY, 300, 2)
       this.lights.push(light)
       this.group.add(light)
     }
+  }
+
+  /** Push the fire's own light harder as the day goes, so it carries the scene at night. */
+  setGlow(multiplier: number): void {
+    for (const light of this.lights) light.intensity = GLOW_INTENSITY * multiplier
   }
 
   /** Roll the smoke upward and follow the fire as it spreads. */
@@ -152,3 +157,6 @@ const SMOKE_RISE = 125
 
 const SMOKE_COLOR = new THREE.Color(0x3b3532)
 const GLOW_COLOR = new THREE.Color(0xff7a2a)
+
+/** Candela of one glow light by day. */
+const GLOW_INTENSITY = 900

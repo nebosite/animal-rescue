@@ -336,6 +336,14 @@ whole texels so the edges do not crawl; the fog hides the rest. Only the terrain
 receives, so a tree does not shade its neighbour. The sun's direction is the
 rig's `setDirection`, which is how the time of day will move the shadows.
 
+## Time of day
+
+Every level is later than the last (`TimeOfDay.skyForLevel`): noon, afternoon,
+golden hour, dusk, then night from level five on. `World.setSky` applies one
+hour — the sun's height and colour (and so the shadows), ambient and hemisphere
+light, sky and fog colour, and `FireField.setGlow`, which pushes the fire's own
+point lights harder as the light goes. At night the fire is the lamp.
+
 ## Reading the ground
 
 Two things exist only so the world is legible from a chase camera:
