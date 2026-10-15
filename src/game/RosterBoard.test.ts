@@ -45,4 +45,12 @@ describe('rosterBoard', () => {
     const rescue = new Rescue(base, finder, Fire.sweepingIn(WEST, 420), campaign.party)
     expect(statuses(rescue, campaign)[1]).toBe('lost')
   })
+
+  it('shows everybody aboard when the hold holds more than one', () => {
+    const campaign = new Campaign()
+    const rescue = new Rescue(base, finder, Fire.sweepingIn(WEST, 420), ROSTER.slice(0, 2))
+    rescue.slots = 2
+    for (const w of [...rescue.waiting]) rescue.landedOn(null, { x: w.site.x, y: w.site.y + 2, z: w.site.z }, true)
+    expect(statuses(rescue, campaign).slice(0, 2)).toEqual(['aboard', 'aboard'])
+  })
 })

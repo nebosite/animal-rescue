@@ -13,6 +13,8 @@ export interface Waiting {
   initialCredit: number
   /** How long it has been out there. */
   waitedSeconds: number
+  /** Set once it is aboard: how the trip has gone so far. */
+  trip?: { seconds: number; from: Site; byWinch: boolean }
 }
 
 /** What just happened, when landing changed the state of the rescue. */
@@ -47,8 +49,13 @@ export class Rescue {
   score = 0
   rescued = 0
   readonly waiting: Waiting[] = []
-  carrying: Waiting | null = null
+  /** Everyone aboard, in the order they were taken on. */
+  readonly aboard: Waiting[] = []
+  /** How many can be aboard at once; an upgrade raises it. */
+  slots = 1
   lastDelivery: Delivery | null = null
+  /** Everyone delivered by the last landing at base (more than one when carrying more than one). */
+  lastDeliveries: Delivery[] = []
   /** The last animal the fire ran off, for the radio. */
   lastLost: Waiting | null = null
   /** Everyone the fire has taken from this level — gone for good. */
@@ -57,9 +64,6 @@ export class Rescue {
   readonly saved: AnimalProfile[] = []
 
   private seed = 0
-  private carriedSeconds = 0
-  private carriedFrom: Site | null = null
-  private carriedByWinch = false
 
   constructor(
     private readonly rescuePad: LandingPad,
@@ -69,6 +73,21 @@ export class Rescue {
     private readonly roster: readonly AnimalProfile[] = ROSTER,
   ) {
     this.stock(party)
+  }
+
+  /** The animal taken on most recently, who the radio and the handling judge answer to. */
+  get carrying(): Waiting | null {
+    return this.aboard[this.aboard.length - 1] ?? null
+  }
+
+  /** No room for another. */
+  get full(): boolean {
+    return this.aboard.length >= this.slots
+  }
+
+  /** Time to fly to the base: the hold is full, or nobody is left to fetch. */
+  get headingHome(): boolean {
+    return this.aboard.length > 0 && (this.full || this.waiting.length === 0)
   }
 
   /** The animal aboard, or the one the player should go for next. */
@@ -115,7 +134,7 @@ export class Rescue {
    */
   advance(dt: number): Waiting | null {
     this.lastLost = null
-    if (this.carrying) this.carriedSeconds += dt
+    for (const passenger of this.aboard) passenger.trip!.seconds += dt
 
     for (const w of this.waiting) {
       w.waitedSeconds += dt
@@ -131,7 +150,7 @@ export class Rescue {
 
   /** Nobody left to fetch or carry: every animal this level is home or gone. */
   get levelOver(): boolean {
-    return this.waiting.length === 0 && this.carrying === null
+    return this.waiting.length === 0 && this.aboard.length === 0
   }
 
   /**
@@ -141,10 +160,8 @@ export class Rescue {
   landedOn(pad: LandingPad | null, position: { x: number; y: number; z: number }, onGround: boolean, impactSpeed = 0): RescueEvent | null {
     if (!onGround) return null
 
-    if (this.carrying) {
-      if (pad !== this.rescuePad) return null
-      return this.deliver(impactSpeed)
-    }
+    if (this.aboard.length > 0 && pad === this.rescuePad) return this.deliver(impactSpeed)
+    if (this.full) return null
 
     const nearby = this.waiting.find((w) => Math.hypot(w.site.x - position.x, w.site.z - position.z) <= PICKUP_RADIUS)
     if (!nearby) return null
@@ -158,7 +175,7 @@ export class Rescue {
    * someone else works the line — so it pays.
    */
   winchUp(position: { x: number; z: number }, hookHeight: number, speed: number): RescueEvent | null {
-    if (this.carrying) return null
+    if (this.full) return null
     if (speed > WINCH_STEADY) return null
 
     const below = this.waiting.find((w) =>
@@ -173,10 +190,8 @@ export class Rescue {
 
   private take(waiting: Waiting, byWinch: boolean): void {
     this.waiting.splice(this.waiting.indexOf(waiting), 1)
-    this.carrying = waiting
-    this.carriedSeconds = 0
-    this.carriedFrom = waiting.site
-    this.carriedByWinch = byWinch
+    waiting.trip = { seconds: 0, from: waiting.site, byWinch }
+    this.aboard.push(waiting)
   }
 
   /**
@@ -188,13 +203,11 @@ export class Rescue {
     this.waiting.length = 0
     this.lost.length = 0
     this.saved.length = 0
-    this.carrying = null
+    this.aboard.length = 0
     this.lastDelivery = null
+    this.lastDeliveries = []
     this.lastLost = null
     this.seed = 0
-    this.carriedSeconds = 0
-    this.carriedFrom = null
-    this.carriedByWinch = false
     this.stock(party)
   }
 
@@ -207,8 +220,9 @@ export class Rescue {
 
   /** Rough handling while aboard costs a little credit — but never the animal's base value. */
   scold(): void {
-    if (!this.carrying) return
-    this.carrying.credit = Math.max(this.rankOf(this.carrying.animal) * POINTS_PER_RANK, this.carrying.credit - SCOLD_COST)
+    for (const passenger of this.aboard) {
+      passenger.credit = Math.max(this.rankOf(passenger.animal) * POINTS_PER_RANK, passenger.credit - SCOLD_COST)
+    }
   }
 
   /**
@@ -234,15 +248,22 @@ export class Rescue {
     return Math.max(0, this.roster.indexOf(animal)) + 1
   }
 
+  /** Everyone aboard comes home at once, each credited on their own trip. */
   private deliver(impactSpeed: number): RescueEvent {
-    const aboard = this.carrying!
+    this.lastDeliveries = this.aboard.map((passenger) => this.creditFor(passenger, impactSpeed))
+    this.lastDelivery = this.lastDeliveries[this.lastDeliveries.length - 1]
+    this.aboard.length = 0
+    return 'delivered'
+  }
+
+  private creditFor(aboard: Waiting, impactSpeed: number): Delivery {
+    const trip = aboard.trip!
     const bonuses: string[] = []
     let credited = aboard.credit
 
     // Par is a brisk direct flight; beating it is worth something.
-    const from = this.carriedFrom ?? aboard.site
-    const distance = Math.hypot(from.x - this.rescuePad.position.x, from.z - this.rescuePad.position.z)
-    if (this.carriedSeconds <= distance / PAR_SPEED + PAR_SLACK) {
+    const distance = Math.hypot(trip.from.x - this.rescuePad.position.x, trip.from.z - this.rescuePad.position.z)
+    if (trip.seconds <= distance / PAR_SPEED + PAR_SLACK) {
       credited += QUICK_BONUS
       bonuses.push(`quick +${QUICK_BONUS}`)
     }
@@ -251,21 +272,16 @@ export class Rescue {
       credited += GENTLE_BONUS
       bonuses.push(`gentle +${GENTLE_BONUS}`)
     }
-    if (this.carriedByWinch) {
+    if (trip.byWinch) {
       credited += WINCH_BONUS
       bonuses.push(`winched +${WINCH_BONUS}`)
     }
 
-    this.lastDelivery = { animal: aboard.animal, site: from, credited, bonuses, scolded: aboard.credit < aboard.initialCredit, gentle }
     this.score += credited
     this.rescued += 1
     this.saved.push(aboard.animal)
-    this.carrying = null
-    this.carriedFrom = null
-    this.carriedByWinch = false
-    return 'delivered'
+    return { animal: aboard.animal, site: trip.from, credited, bonuses, scolded: aboard.credit < aboard.initialCredit, gentle }
   }
-
 }
 
 /** Each animal is worth its place in the roster times this: 100, 200, 300... */

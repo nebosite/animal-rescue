@@ -336,7 +336,7 @@ level, `Helicopter.enginePower`), fire resistance (heat rises 25% slower,
 `HeatGauge.riseScale`) and extra water (+2 loads, `WaterTank.setLoads`). Three
 levels each, 200 x level to buy, paid out of the score as a balance
 (score less spent) so the score never goes down. Upgrades last until game over.
-Pad players can still skip the shop with Start; buying is mouse or keyboard.
+The animal slot raises `Rescue.slots`: land beside a second animal before heading home, and the base delivers everyone aboard at once, each credited on its own trip (`aboard`, `headingHome`, `lastDeliveries`). Only one is drawn slung under the helicopter. Pad players can still skip the shop with Start; buying is mouse or keyboard.
 
 ## Shadows
 

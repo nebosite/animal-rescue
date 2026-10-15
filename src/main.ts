@@ -242,7 +242,7 @@ renderer.setAnimationLoop(() => {
       const aboard = rescue.carrying!
       flagged.delete(aboard)
       winch.stow()
-      hud.flash(`${aboard.animal.name.toUpperCase()} ON THE WINCH — TO THE RESCUE BASE`)
+      hud.flash(`${aboard.animal.name.toUpperCase()} ON THE WINCH — ${rescue.headingHome ? 'TO THE RESCUE BASE' : 'ROOM FOR ANOTHER'}`)
       soundscape?.pickedUp()
       radio.say(announcer.ferret('winchHooked'))
       presentAnimals()
@@ -252,19 +252,23 @@ renderer.setAnimationLoop(() => {
       case 'picked-up': {
         const aboard = rescue.carrying!
         flagged.delete(aboard)
-        hud.flash(`${aboard.animal.name.toUpperCase()} ABOARD — TO THE RESCUE BASE`)
+        hud.flash(`${aboard.animal.name.toUpperCase()} ABOARD — ${rescue.headingHome ? 'TO THE RESCUE BASE' : 'ROOM FOR ANOTHER'}`)
         soundscape?.pickedUp()
         radio.say(announcer.pickedUp(aboard.animal))
         presentAnimals()
         break
       }
       case 'delivered': {
-        const { animal, credited, bonuses, scolded, gentle } = rescue.lastDelivery!
-        const extras = bonuses.length ? `  ·  ${bonuses.join('  ·  ')}` : ''
-        hud.flash(`${animal.name.toUpperCase()} RESCUED!  +${credited}${extras}`)
+        const home = rescue.lastDeliveries
+        const names = home.map((d) => d.animal.name.toUpperCase()).join(' + ')
+        const total = home.reduce((sum, d) => sum + d.credited, 0)
+        const extras = home.length === 1 && home[0].bonuses.length ? `  ·  ${home[0].bonuses.join('  ·  ')}` : ''
+        hud.flash(`${names} RESCUED!  +${total}${extras}`)
         soundscape?.delivered()
-        analytics.event('animal_rescued', { animal: animal.name, credit: credited })
-        radio.say(announcer.delivered(animal, scolded, gentle))
+        for (const { animal, credited, scolded, gentle } of home) {
+          analytics.event('animal_rescued', { animal: animal.name, credit: credited })
+          radio.say(announcer.delivered(animal, scolded, gentle))
+        }
         presentAnimals()
         break
       }
@@ -311,7 +315,7 @@ function noticeController(): void {
 
 /** What the soundscape needs to know about where you are. */
 function surroundings() {
-  const going = rescue.carrying ? null : rescue.recommended(helicopter.position)
+  const going = rescue.headingHome ? null : rescue.recommended(helicopter.position)
   return {
     callFrom: going ? going.site : null,
     fireDistance: world.fire.distanceToNearest(helicopter.position.x, helicopter.position.z),
@@ -356,11 +360,11 @@ function workTheCopilot(ground: number, dt: number): void {
     radio.say(announcer.ferret(seatTaken ? 'takeover' : 'handback'))
   }
 
-  const going = rescue.carrying ? null : rescue.recommended(helicopter.position)
+  const going = rescue.headingHome ? null : rescue.recommended(helicopter.position)
   const threatened = rescue.mostThreatened()
   const orders = copilot.orders({
     takenOver: copilotSeat.taken,
-    carrying: rescue.carrying !== null,
+    carrying: rescue.full,
     overAnimal: !!going && Math.hypot(going.site.x - helicopter.position.x, going.site.z - helicopter.position.z) <= WINCH_REACH,
     heightAboveAnimal: going ? helicopter.position.y - going.site.y : Infinity,
     speed: helicopter.speed,
@@ -381,7 +385,7 @@ function workTheCopilot(ground: number, dt: number): void {
   if (wantsWater && waterCooldown.tryFire()) dropWater(ground)
   waterCooldown.advance(dt)
 
-  if (!rescue.carrying && going && ferretChatter.tryFire()) {
+  if (!rescue.headingHome && going && ferretChatter.tryFire()) {
     radio.say(announcer.ferret(Math.random() < 0.6 ? 'spotted' : 'idle', going.animal.name))
   }
 }
@@ -590,6 +594,7 @@ function applyUpgrades(): void {
   helicopter.enginePower = upgrades.enginePower
   heatGauge.riseScale = upgrades.heatRise
   tank.setLoads(upgrades.tankLoads(LOADS))
+  rescue.slots = upgrades.animalSlots
 }
 
 window.addEventListener('keydown', (event) => {
@@ -662,7 +667,7 @@ function presentAnimals(): void {
     world.waitingAnimals[i]?.applyLook(w.animal.look)
   })
   if (rescue.carrying) world.animal.applyLook(rescue.carrying.animal.look)
-  const going = rescue.carrying ? null : rescue.recommended(helicopter.position)
+  const going = rescue.headingHome ? null : rescue.recommended(helicopter.position)
   if (going) soundscape?.beacon.setCall(going.animal.call)
 }
 
@@ -703,7 +708,7 @@ function standingStatus(landedPad: LandingPad | null): string {
   if (shift.over) return gameOver ? 'GAME OVER — PRESS R OR START TO PLAY AGAIN' : `LEVEL CLEARED — PRESS R OR START FOR LEVEL ${campaign.level}`
   if (airframe.isWrecked) return 'AIRFRAME GONE — LAND AT BASE TO END THE SHIFT'
   if (landedPad) return `LANDED — ${landedPad.label.toUpperCase()}`
-  if (rescue.carrying) return `CARRYING ${rescue.carrying.animal.name.toUpperCase()}`
+  if (rescue.carrying) return `CARRYING ${rescue.aboard.map((w) => w.animal.name.toUpperCase()).join(' + ')}`
   // Controller-only players never press a key, so tell them sound is waiting on one.
   if (!audio.started) return 'PRESS ANY KEY OR CLICK TO START THE SHIFT'
   const going = rescue.recommended(helicopter.position)
@@ -715,9 +720,9 @@ function standingStatus(landedPad: LandingPad | null): string {
  * and the on-screen markers all read from the same guidance.
  */
 function guide(): void {
-  const homeward = rescue.carrying !== null || airframe.isWrecked
+  const homeward = rescue.headingHome || airframe.isWrecked
   const going = homeward ? null : rescue.recommended(helicopter.position)
-  const focus = rescue.carrying ?? going
+  const focus = rescue.headingHome ? rescue.carrying : going
   const threatened = rescue.mostThreatened()
 
   const targetX = homeward ? world.rescuePad.position.x : (going?.site.x ?? world.rescuePad.position.x)
@@ -734,7 +739,7 @@ function guide(): void {
     animalName: focus?.animal.name ?? 'anyone',
     species: focus?.animal.species ?? '',
     siteLabel: going?.site.label ?? '',
-    carrying: rescue.carrying !== null,
+    carrying: rescue.headingHome,
     wrecked: airframe.isWrecked,
     failing: airframe.isFailing,
     onGround: helicopter.isOnGround,
@@ -742,7 +747,7 @@ function guide(): void {
     range,
     heightAboveTarget: helicopter.position.y - targetY,
     speed: helicopter.speed,
-    othersWaiting: rescue.carrying ? rescue.waiting.length : Math.max(0, rescue.waiting.length - 1),
+    othersWaiting: rescue.headingHome ? rescue.waiting.length : Math.max(0, rescue.waiting.length - 1),
     fireClosingOn: threatened?.animal.name ?? null,
     shiftOver: shift.over,
     closingSeconds: shift.closing ? shift.remaining : null,

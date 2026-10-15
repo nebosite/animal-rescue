@@ -23,7 +23,7 @@ export function rosterBoard(roster: readonly AnimalProfile[], rescue: Rescue, ca
 }
 
 function statusOf(animal: AnimalProfile, rescue: Rescue, campaign: Campaign): RosterStatus {
-  if (rescue.carrying?.animal === animal) return 'aboard'
+  if (rescue.aboard.some((w) => w.animal === animal)) return 'aboard'
   if (rescue.saved.includes(animal)) return 'saved'
   if (rescue.lost.some((w) => w.animal === animal) || campaign.gone.includes(animal)) return 'lost'
   if (rescue.waiting.some((w) => w.animal === animal)) return 'waiting'

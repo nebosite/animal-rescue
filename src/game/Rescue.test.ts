@@ -232,4 +232,62 @@ describe('Rescue', () => {
     expect(again.waiting.map((w) => [w.animal.id, w.site.x, w.site.z]))
       .toEqual(rescue.waiting.map((w) => [w.animal.id, w.site.x, w.site.z]))
   })
+
+  describe('with an extra slot', () => {
+    beforeEach(() => { rescue.slots = 2 })
+
+    it('takes a second animal aboard before heading home, and not a third', () => {
+      rescue.landedOn(null, at(rescue.waiting[0].site), true)
+      expect(rescue.aboard).toHaveLength(1)
+      expect(rescue.full).toBe(false)
+      expect(rescue.headingHome).toBe(false) // someone is still out there to fetch
+
+      rescue.landedOn(null, at(rescue.waiting[0].site), true)
+      expect(rescue.aboard).toHaveLength(2)
+      expect(rescue.full).toBe(true)
+      expect(rescue.headingHome).toBe(true)
+
+      const third = rescue.waiting[0]
+      expect(rescue.landedOn(null, at(third.site), true)).toBeNull()
+      expect(rescue.aboard).toHaveLength(2)
+    })
+
+    it('delivers everyone aboard at once and credits each of them', () => {
+      const first = rescue.waiting[0]
+      const second = rescue.waiting[1]
+      rescue.landedOn(null, at(first.site), true)
+      rescue.landedOn(null, at(second.site), true)
+      expect(rescue.landedOn(base, onBase, true, 1)).toBe('delivered')
+      expect(rescue.lastDeliveries.map((d) => d.animal)).toEqual([first.animal, second.animal])
+      expect(rescue.saved).toEqual([first.animal, second.animal])
+      expect(rescue.rescued).toBe(2)
+      expect(rescue.aboard).toHaveLength(0)
+      expect(rescue.score).toBe(rescue.lastDeliveries.reduce((sum, d) => sum + d.credited, 0))
+    })
+
+    it('heads home with a half-full hold when nobody else is left, and times each trip from its own pickup', () => {
+      const solo = new Rescue(base, finder, Fire.sweepingIn(WEST, 420), ROSTER.slice(0, 2))
+      solo.slots = 3
+      solo.landedOn(null, at(solo.waiting[0].site), true)
+      expect(solo.headingHome).toBe(false)
+      for (let i = 0; i < 600; i++) solo.advance(0.5) // five minutes: the first is long overdue
+      solo.landedOn(null, at(solo.waiting[0].site), true)
+      expect(solo.headingHome).toBe(true) // the hold is not full, but there is no one left
+      solo.landedOn(base, onBase, true, 9)
+      const [slow, fresh] = solo.lastDeliveries
+      expect(slow.bonuses.some((b) => b.startsWith('quick'))).toBe(false)
+      expect(fresh.bonuses.some((b) => b.startsWith('quick'))).toBe(true)
+    })
+
+    it('scolds everyone aboard', () => {
+      const a = rescue.waiting[0]
+      const b = rescue.waiting[1]
+      rescue.landedOn(null, at(a.site), true)
+      rescue.landedOn(null, at(b.site), true)
+      const before = [a.credit, b.credit]
+      rescue.scold()
+      expect(a.credit).toBeLessThan(before[0])
+      expect(b.credit).toBeLessThan(before[1])
+    })
+  })
 })
