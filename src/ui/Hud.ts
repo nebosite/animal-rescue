@@ -62,6 +62,31 @@ export class Hud {
     }
   }
 
+  private renderedRoster = ''
+
+  /**
+   * The roster strip: a chip per animal met so far, in the roster's order, with
+   * what has become of them. Rebuilt only when something changes.
+   */
+  setRoster(entries: readonly { animal: { name: string; look: { coat: number } }; status: string }[]): void {
+    const strip = document.getElementById('roster')
+    if (!strip) return
+    const key = entries.map((e) => `${e.animal.name}:${e.status}`).join('|')
+    if (key === this.renderedRoster) return
+    this.renderedRoster = key
+    strip.replaceChildren(
+      ...entries.filter((e) => e.status !== 'unmet').map((e) => {
+        const chip = document.createElement('span')
+        chip.className = 'chip'
+        chip.dataset.status = e.status
+        const dot = document.createElement('i')
+        dot.style.background = `#${e.animal.look.coat.toString(16).padStart(6, '0')}`
+        chip.append(dot, e.animal.name)
+        return chip
+      }),
+    )
+  }
+
   /** The shift clock, blinking when it is nearly over. */
   setClock(text: string, closing: boolean, clockElement?: HTMLElement): void {
     const element = clockElement ?? document.getElementById('clock')

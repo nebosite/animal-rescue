@@ -67,6 +67,20 @@
       #clock[data-closing="true"] { color: var(--orange); animation: tick 1s steps(2, end) infinite; }
       @keyframes tick { 50% { opacity: 0.55; } }
 
+      /* ---- who has been brought home ---- */
+      #roster { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: calc(3px * var(--ui)); max-width: calc(260px * var(--ui)); }
+      #roster .chip {
+        display: flex; align-items: center; gap: calc(3px * var(--ui)); padding: calc(2px * var(--ui)) calc(5px * var(--ui));
+        font-size: calc(11px * var(--ui)); font-weight: 700; line-height: 1; color: var(--ink);
+        background: var(--panel); border-radius: calc(3px * var(--ui)); border: 1px solid transparent;
+      }
+      #roster .chip i { width: calc(9px * var(--ui)); height: calc(9px * var(--ui)); border-radius: 50%; display: inline-block; }
+      #roster .chip[data-status="waiting"] { opacity: 0.6; }
+      #roster .chip[data-status="aboard"] { border-color: var(--amber); }
+      #roster .chip[data-status="saved"] { border-color: var(--green); }
+      #roster .chip[data-status="saved"]::after { content: ' \2713'; color: var(--green); }
+      #roster .chip[data-status="lost"] { opacity: 0.45; text-decoration: line-through; }
+
       /*
        * The course indicator: a dial with a fixed mark at the top for the way
        * the nose is pointing, a needle swinging round to where you should be
@@ -207,6 +221,7 @@
 
     <div id="right-stack">
       <div id="score-row"><div id="score">SCORE 0</div><div id="clock" data-closing="false">5:00</div></div>
+      <div id="roster"></div>
       <div id="course" data-target="pickup">
         <svg id="compass" viewBox="-50 -50 100 100" aria-hidden="true">
           <circle class="dial" r="44" />
@@ -230,6 +245,12 @@
       <div class="target-inner"><span class="target-arrow">▲</span><span class="target-label"></span></div>
     </div>
     <div class="target-marker" id="target-marker-2" data-where="hidden">
+      <div class="target-inner"><span class="target-arrow">▲</span><span class="target-label"></span></div>
+    </div>
+    <div class="target-marker" id="target-marker-3" data-where="hidden">
+      <div class="target-inner"><span class="target-arrow">▲</span><span class="target-label"></span></div>
+    </div>
+    <div class="target-marker" id="target-marker-4" data-where="hidden">
       <div class="target-inner"><span class="target-arrow">▲</span><span class="target-label"></span></div>
     </div>
 

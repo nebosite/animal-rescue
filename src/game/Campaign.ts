@@ -14,6 +14,8 @@ export type LevelOutcome = 'next' | 'over'
 export class Campaign {
   level = 1
   party: AnimalProfile[]
+  /** Everyone the fire has taken on earlier levels. */
+  readonly gone: AnimalProfile[] = []
 
   /** How many roster animals have been introduced, saved or not. */
   private introduced = 1
@@ -31,7 +33,8 @@ export class Campaign {
    * Close the level out. With at least one animal saved, the party for the
    * next is those animals plus the next new one (until the roster runs out).
    */
-  finishLevel(saved: readonly AnimalProfile[]): LevelOutcome {
+  finishLevel(saved: readonly AnimalProfile[], lost: readonly AnimalProfile[] = []): LevelOutcome {
+    this.gone.push(...lost)
     if (saved.length === 0) return 'over'
     this.level += 1
     this.party = [...saved]
@@ -43,6 +46,7 @@ export class Campaign {
   restart(): void {
     this.level = 1
     this.introduced = 1
+    this.gone.length = 0
     this.party = [this.roster[0]]
   }
 }

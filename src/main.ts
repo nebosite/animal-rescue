@@ -12,6 +12,8 @@ import { TargetMarker, type Box } from './ui/TargetMarker'
 import { Airframe } from './game/Airframe'
 import { Cooldown } from './game/Cooldown'
 import { Campaign } from './game/Campaign'
+import { ROSTER } from './game/AnimalProfile'
+import { rosterBoard } from './game/RosterBoard'
 import { Shift } from './game/Shift'
 import { noInput } from './game/FlightInput'
 import { Turbulence } from './game/Turbulence'
@@ -27,7 +29,7 @@ import { RadioPanel } from './ui/RadioPanel'
 import { RestartInput } from './game/RestartInput'
 import { Analytics } from './telemetry/Analytics'
 
-const world = new World()
+const world = new World(ROSTER.length)
 const helicopter = new Helicopter()
 // Start on the base pad, which is wherever the hills put it.
 helicopter.position.set(world.rescuePad.position.x, world.rescuePad.position.y + 8, world.rescuePad.position.z)
@@ -269,6 +271,7 @@ renderer.setAnimationLoop(() => {
   hud.setIntegrity(airframe.integrity)
   hud.setCrew(winch.extended, tank.fraction, tank.loads, copilotSeat.taken)
   hud.setClock(`LEVEL ${campaign.level}`, false)
+  hud.setRoster(rosterBoard(ROSTER, rescue, campaign))
   hud.update(standingStatus(landedPad), rescue.score)
 
   renderer.render(world.scene, world.camera)
@@ -491,7 +494,7 @@ function endLevel(): void {
   shift.end()
   const saved = [...rescue.saved]
   const cleared = campaign.level
-  const outcome = campaign.finishLevel(saved)
+  const outcome = campaign.finishLevel(saved, rescue.lost.map((w) => w.animal))
   analytics.event('level_end', { level: cleared, saved: saved.length, lost: rescue.lost.length, score: rescue.score })
   if (outcome === 'over') {
     endGame('lost')
