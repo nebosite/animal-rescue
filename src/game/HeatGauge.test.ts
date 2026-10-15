@@ -84,3 +84,15 @@ describe('HeatGauge', () => {
     expect(gauge.temperature).toBe(0)
   })
 })
+
+describe('HeatGauge fire resistance', () => {
+  it('heats more slowly when the scale is down', () => {
+    const plain = new HeatGauge()
+    const tough = new HeatGauge()
+    tough.riseScale = 0.5
+    const dry = () => { const tank = new WaterTank(); while (tank.hasSpray) tank.spray(1); return tank }
+    sit(plain, dry(), inFire, 1.5)
+    sit(tough, dry(), inFire, 1.5)
+    expect(tough.temperature).toBeLessThan(plain.temperature)
+  })
+})

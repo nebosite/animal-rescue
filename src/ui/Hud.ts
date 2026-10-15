@@ -130,8 +130,51 @@ export class Hud {
     overlay.hidden = false
   }
 
+  /**
+   * The upgrade shop on the level card: one button per upgrade, numbered to
+   * match the keys 1-4, with what it costs and whether the score covers it.
+   * `onBuy` is told which was chosen; the caller re-renders with the new state.
+   */
+  showShop(items: readonly ShopItem[], balance: number, note: string, onBuy: (index: number) => void): void {
+    const shop = document.getElementById('shop')
+    if (!shop) return
+    document.getElementById('shop-note')!.textContent = note
+    document.getElementById('shop-balance')!.textContent = `${balance} to spend`
+    document.getElementById('shop-items')!.replaceChildren(
+      ...items.map((item, index) => {
+        const button = document.createElement('button')
+        button.className = 'shop-item'
+        button.disabled = !item.affordable
+        button.dataset.maxed = String(item.price === null)
+        const level = '●'.repeat(item.level) + '○'.repeat(Math.max(0, item.maxLevel - item.level))
+        const price = item.price === null ? 'MAX' : `${item.price}`
+        button.innerHTML = `<b>${index + 1}</b><span class="shop-title"></span><span class="shop-level">${level}</span><span class="shop-price">${price}</span>`
+        button.querySelector('.shop-title')!.textContent = `${item.title} — ${item.blurb}`
+        button.addEventListener('click', () => { onBuy(index); button.blur() })
+        return button
+      }),
+    )
+    shop.hidden = false
+  }
+
+  /** Shop only: a line for why it is closed, when it is. */
+  showShopClosed(note: string): void {
+    const shop = document.getElementById('shop')
+    if (!shop) return
+    document.getElementById('shop-note')!.textContent = note
+    document.getElementById('shop-balance')!.textContent = ''
+    document.getElementById('shop-items')!.replaceChildren()
+    shop.hidden = false
+  }
+
+  hideShop(): void {
+    const shop = document.getElementById('shop')
+    if (shop) shop.hidden = true
+  }
+
   /** Put the card away, because another shift is starting in place. */
   hideShiftEnd(): void {
+    this.hideShop()
     const overlay = document.getElementById('shift-end')
     if (overlay) overlay.hidden = true
   }
@@ -236,4 +279,15 @@ export class Hud {
     }
     this.statusElement.classList.toggle('is-flash', flashing)
   }
+}
+
+/** One row of the shop. */
+export interface ShopItem {
+  title: string
+  blurb: string
+  level: number
+  maxLevel: number
+  /** Null once it is at the top level. */
+  price: number | null
+  affordable: boolean
 }

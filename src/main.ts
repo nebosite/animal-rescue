@@ -13,6 +13,7 @@ import { Airframe } from './game/Airframe'
 import { Cooldown } from './game/Cooldown'
 import { Campaign } from './game/Campaign'
 import { HeatGauge } from './game/HeatGauge'
+import { MAX_LEVEL, Upgrades } from './game/Upgrades'
 import { skyForLevel } from './game/TimeOfDay'
 import { ROSTER } from './game/AnimalProfile'
 import { rosterBoard } from './game/RosterBoard'
@@ -22,7 +23,7 @@ import { Turbulence } from './game/Turbulence'
 import { Copilot } from './game/Copilot'
 import { CopilotInput } from './game/CopilotInput'
 import { Winch } from './game/Winch'
-import { WaterTank, DROP_RADIUS } from './game/WaterTank'
+import { WaterTank, DROP_RADIUS, LOADS } from './game/WaterTank'
 import { CHIEF_FUSSINESS } from './game/AnimalProfile'
 import { AudioEngine } from './audio/AudioEngine'
 import { Soundscape } from './audio/Soundscape'
@@ -73,6 +74,9 @@ copilotSeat.attach(window)
 const winch = new Winch()
 const tank = new WaterTank()
 const heatGauge = new HeatGauge()
+const upgrades = new Upgrades()
+/** True while the shop is open on the level card. */
+let shopOpen = false
 const restartInput = new RestartInput()
 restartInput.attach(window)
 /*
@@ -140,6 +144,7 @@ if (import.meta.env.DEV) {
     winch,
     tank,
     heatGauge,
+    upgrades,
     copilot,
     copilotSeat,
     get soundscape() { return soundscape },
@@ -531,10 +536,67 @@ function endLevel(): void {
   const detail = news.length
     ? `${news.map((a) => a.name).join(', ')} joins the next one`
     : 'the fire runs faster'
+  openShop()
   hud.showShiftEnd(rescue.score, rescue.rescued, detail, `Level ${cleared} cleared`, `Press <b>R</b> &mdash; or <b>Start</b> &mdash; for level ${campaign.level}`)
   hud.flash(`LEVEL ${cleared} CLEARED`)
   radio.say(announcer.shiftOver(saved.length))
 }
+
+/**
+ * The shop opens for a clean level: every animal brought home, and the
+ * airframe less than a fifth damaged. Otherwise the card says what was missed,
+ * so the player learns what the shop wants.
+ */
+function openShop(): void {
+  const lostAny = rescue.lost.length > 0
+  const damage = 1 - airframe.integrity
+  if (lostAny || damage >= UPGRADE_DAMAGE_LIMIT) {
+    shopOpen = false
+    hud.showShopClosed(lostAny
+      ? 'No upgrades: somebody was lost to the fire.'
+      : `No upgrades: ${Math.round(damage * 100)}% airframe damage (under ${UPGRADE_DAMAGE_LIMIT * 100}% needed).`)
+    return
+  }
+  shopOpen = true
+  renderShop('Clean flight — spend your points. Keys 1-4, or click.')
+}
+
+function renderShop(note: string): void {
+  hud.showShop(
+    upgrades.catalogue.map((info) => ({
+      title: info.title,
+      blurb: info.blurb,
+      level: upgrades.levels[info.id],
+      maxLevel: MAX_LEVEL,
+      price: upgrades.price(info.id),
+      affordable: upgrades.canBuy(info.id, rescue.score),
+    })),
+    upgrades.balance(rescue.score),
+    note,
+    buyUpgrade,
+  )
+}
+
+function buyUpgrade(index: number): void {
+  const info = upgrades.catalogue[index]
+  if (!shopOpen || !info || !upgrades.buy(info.id, rescue.score)) return
+  applyUpgrades()
+  soundscape?.delivered()
+  renderShop(`${info.title} bought.`)
+}
+
+/** Hand each system the number it reads from what has been bought. */
+function applyUpgrades(): void {
+  helicopter.enginePower = upgrades.enginePower
+  heatGauge.riseScale = upgrades.heatRise
+  tank.setLoads(upgrades.tankLoads(LOADS))
+}
+
+window.addEventListener('keydown', (event) => {
+  if (!shopOpen || event.repeat) return
+  const index = ['Digit1', 'Digit2', 'Digit3', 'Digit4'].indexOf(event.code)
+  if (index >= 0) buyUpgrade(index)
+})
 
 /** The run is over: every animal lost, or a write-off brought home. */
 function endGame(why: 'lost' | 'wrecked'): void {
@@ -565,15 +627,18 @@ function flyAnother(): void {
   world.fire.pace = campaign.firePace
   if (gameOver) {
     campaign.restart()
+    upgrades.reset()
     world.fire.pace = campaign.firePace
     rescue.reset(campaign.party)
   } else {
     rescue.startLevel(campaign.party)
   }
   gameOver = false
+  shopOpen = false
   world.setSky(skyForLevel(campaign.level))
   shift.restart()
   airframe.repair()
+  applyUpgrades()
   tank.fill()
   heatGauge.reset()
   winch.stow()
@@ -776,3 +841,6 @@ const SKID_HEIGHT = 2
 
 /** A hot machine with an empty tank is worth a warning from here. */
 const DRY_WARNING_AT = 0.6
+
+/** A level is clean enough for the shop below this much airframe damage. */
+const UPGRADE_DAMAGE_LIMIT = 0.2

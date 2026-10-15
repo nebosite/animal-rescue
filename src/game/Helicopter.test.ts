@@ -336,3 +336,18 @@ describe('Helicopter on a damaged machine', () => {
     expect(Math.abs(wreck.pitch)).toBeLessThan(1e-6)
   })
 })
+
+describe('Helicopter bought engine power', () => {
+  it('goes faster and climbs quicker with a stronger motor', () => {
+    const stock = fly(fresh(), { pitch: 1 }, 3)
+    const strong = fresh()
+    strong.enginePower = 1.3
+    fly(strong, { pitch: 1 }, 3)
+    expect(strong.speed).toBeGreaterThan(stock.speed * 1.1)
+
+    const climbStock = fly(fresh(), { collective: 1 }, 1).position.y
+    const climber = fresh()
+    climber.enginePower = 1.3
+    expect(fly(climber, { collective: 1 }, 1).position.y).toBeGreaterThan(climbStock)
+  })
+})

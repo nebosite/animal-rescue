@@ -27,6 +27,8 @@ export class HeatGauge {
   /** 0 is cool, 1 is the point where the paint starts to go. */
   temperature = 0
   spraying = false
+  /** How fast flame heats the machine, as a multiple of stock; fire resistance brings it down. */
+  riseScale = 1
 
   /**
    * Time passes. Returns the heat that actually reaches the airframe, 0..1:
@@ -36,7 +38,7 @@ export class HeatGauge {
     this.spraying = this.wantsSpray(input) && tank.hasSpray
     if (this.spraying) tank.spray(SPRAY_LOADS_PER_SECOND * dt)
 
-    const rise = input.flameHeat * HEAT_RISE
+    const rise = input.flameHeat * HEAT_RISE * this.riseScale
     const fall = AIR_COOLING + (this.spraying ? SPRAY_COOLING : 0)
     this.temperature = Math.min(1, Math.max(0, this.temperature + (rise - fall) * dt))
 

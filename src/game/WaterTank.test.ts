@@ -41,3 +41,23 @@ describe('WaterTank', () => {
     expect(tank.loads).toBeLessThan(LOADS)
   })
 })
+
+describe('WaterTank capacity', () => {
+  it('holds more loads when enlarged, and the gauge still reads a fraction of the new size', () => {
+    const tank = new WaterTank()
+    tank.setLoads(LOADS + 2)
+    tank.fill()
+    expect(tank.loads).toBe(LOADS + 2)
+    tank.drop()
+    expect(tank.fraction).toBeCloseTo((LOADS + 1) / (LOADS + 2))
+  })
+
+  it('still fills in about eight seconds, however big', () => {
+    const tank = new WaterTank()
+    tank.setLoads(LOADS + 4)
+    tank.fill()
+    while (tank.drop()) { /* empty it */ }
+    tank.refill(8)
+    expect(tank.fraction).toBe(1)
+  })
+})

@@ -46,6 +46,9 @@ export class Helicopter {
    */
   condition = 1
 
+  /** Bought power: a multiple of stock thrust and climb, on top of whatever damage leaves. */
+  enginePower = 1
+
   /** True on the one update in which the skids touched down. */
   justLanded = false
   /** How fast it was descending when the skids touched, units per second. Set with justLanded. */
@@ -175,7 +178,7 @@ export class Helicopter {
    * "fly it home or press on" a decision rather than a sentence.
    */
   private get power(): number {
-    return WRECKED_POWER + (1 - WRECKED_POWER) * clamp(this.condition, 0, 1)
+    return (WRECKED_POWER + (1 - WRECKED_POWER) * clamp(this.condition, 0, 1)) * this.enginePower
   }
 
   private turn(yawInput: number, dt: number): void {

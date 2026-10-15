@@ -328,6 +328,16 @@ Animal-Crossing-style blip voice. The rules live in `Rescue`, which is told
 where the helicopter landed and how hard, and decides whether anything
 happened — so calling it every frame while parked is harmless.
 
+## Upgrades (`Upgrades.ts`)
+
+A level with nobody lost and the airframe under 20% damaged opens a shop on the
+level card (keys 1-4 or click): extra animal slot, more powerful motor (+15% per
+level, `Helicopter.enginePower`), fire resistance (heat rises 25% slower,
+`HeatGauge.riseScale`) and extra water (+2 loads, `WaterTank.setLoads`). Three
+levels each, 200 x level to buy, paid out of the score as a balance
+(score less spent) so the score never goes down. Upgrades last until game over.
+Pad players can still skip the shop with Start; buying is mouse or keyboard.
+
 ## Shadows
 
 Trees and boulders cast real shadows from the sun onto the land (`ShadowRig`).

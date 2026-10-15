@@ -7,11 +7,18 @@
  * interesting part.
  */
 export class WaterTank {
+  private capacity = CAPACITY
   private level = CAPACITY
+
+  /** A bigger (or smaller) tank, in whole loads. Fill it afterwards. */
+  setLoads(loads: number): void {
+    this.capacity = loads * LOAD
+    this.level = Math.min(this.level, this.capacity)
+  }
 
   /** How full it is, 0..1. */
   get fraction(): number {
-    return this.level / CAPACITY
+    return this.level / this.capacity
   }
 
   get loads(): number {
@@ -43,11 +50,11 @@ export class WaterTank {
 
   /** Sitting on the base pad fills it back up. */
   refill(dt: number): void {
-    this.level = Math.min(CAPACITY, this.level + REFILL_PER_SECOND * dt)
+    this.level = Math.min(this.capacity, this.level + (this.capacity / REFILL_SECONDS) * dt)
   }
 
   fill(): void {
-    this.level = CAPACITY
+    this.level = this.capacity
   }
 }
 
@@ -55,7 +62,7 @@ export class WaterTank {
 export const LOADS = 4
 const LOAD = 1
 const CAPACITY = LOADS * LOAD
-/** A full tank in about eight seconds on the pad. */
-const REFILL_PER_SECOND = CAPACITY / 8
+/** A full tank in about eight seconds on the pad, however big. */
+const REFILL_SECONDS = 8
 /** How wide a drop falls, and how much fire it takes out of the front. */
 export const DROP_RADIUS = 46
