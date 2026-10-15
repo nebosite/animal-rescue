@@ -147,6 +147,9 @@ if (import.meta.env.DEV) {
 
 const renderer = new THREE.WebGLRenderer({ antialias: true })
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+// Filtered edges, because a hard-edged shadow of ten thousand needles is only noise.
+renderer.shadowMap.enabled = true
+renderer.shadowMap.type = THREE.PCFShadowMap
 document.body.appendChild(renderer.domElement)
 
 function fitToWindow(): void {
@@ -206,6 +209,7 @@ renderer.setAnimationLoop(() => {
     helicopter.roll + helicopter.shakeRoll + helicopter.rattleRoll,
   )
   world.helicopter.spin(dt)
+  world.shadows.follow(helicopter.position.x, ground, helicopter.position.z)
   // Sun straight overhead, so the shadow is directly below and its size is a
   // reading of height — which is most of what the last ten metres of a descent
   // needs and the chase camera cannot otherwise give.

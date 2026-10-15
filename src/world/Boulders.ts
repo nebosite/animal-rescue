@@ -80,6 +80,7 @@ export class Boulders {
     rocks.instanceMatrix.needsUpdate = true
     if (rocks.instanceColor) rocks.instanceColor.needsUpdate = true
     rocks.frustumCulled = false
+    rocks.castShadow = true
     this.group.add(rocks)
   }
 }

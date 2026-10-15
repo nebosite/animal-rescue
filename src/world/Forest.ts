@@ -87,7 +87,10 @@ export class Forest {
     this.trunks.instanceMatrix.needsUpdate = true
 
     // Nothing gets close enough for a tree to need per-frame culling maths.
-    for (const mesh of [this.trunks, this.crowns, this.alight]) mesh.frustumCulled = false
+    for (const mesh of [this.trunks, this.crowns, this.alight]) {
+      mesh.frustumCulled = false
+      mesh.castShadow = true
+    }
     this.group.add(this.trunks, this.crowns, this.alight)
   }
 

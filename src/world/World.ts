@@ -16,6 +16,7 @@ import { WaterDrop } from './WaterDrop'
 import { Debris } from './Debris'
 import { FireParticles } from './FireParticles'
 import { GroundShadow } from './GroundShadow'
+import { ShadowRig } from './ShadowRig'
 import { Plain } from './Plain'
 import { SiteFinder } from '../game/SiteFinder'
 import { FIELD_LIMIT } from '../game/Helicopter'
@@ -52,6 +53,9 @@ export class World {
   readonly waterDrop = new WaterDrop()
   /** Needles and bark knocked out of the canopy by a clumsy approach. */
   readonly debris = new Debris()
+  readonly sun: THREE.DirectionalLight
+  /** Keeps the sun's shadow box over the helicopter; trees cast onto the land through it. */
+  readonly shadows: ShadowRig
   /** The helicopter's own shadow, for reading height on the way down. */
   readonly shadow: GroundShadow
 
@@ -79,9 +83,10 @@ export class World {
     // read as gloomy in play-testing. The fire still carries against it because
     // the flames are additive and the smoke is dark.
     this.scene.add(new THREE.AmbientLight(0xe4f1ff, 1.5))
-    const sun = new THREE.DirectionalLight(0xfff3d9, 2.7)
-    sun.position.set(180, 420, 120)
-    this.scene.add(sun)
+    this.sun = new THREE.DirectionalLight(0xfff3d9, 2.7)
+    this.sun.position.set(180, 420, 120)
+    this.scene.add(this.sun, this.sun.target)
+    this.shadows = new ShadowRig(this.sun)
     const bounce = new THREE.HemisphereLight(0xaee0ff, 0x86b85a, 0.8)
     this.scene.add(bounce)
 

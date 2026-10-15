@@ -52,7 +52,8 @@ export class TerrainMesh {
       geometry,
       new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 }),
     )
-    this.mesh.receiveShadow = false
+    // The trees' shadows land on it.
+    this.mesh.receiveShadow = true
   }
 
   /**

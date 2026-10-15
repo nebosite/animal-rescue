@@ -328,6 +328,14 @@ Animal-Crossing-style blip voice. The rules live in `Rescue`, which is told
 where the helicopter landed and how hard, and decides whether anything
 happened — so calling it every frame while parked is harmless.
 
+## Shadows
+
+Trees and boulders cast real shadows from the sun onto the land (`ShadowRig`).
+The shadow map covers only a 260-unit box that follows the helicopter, moved in
+whole texels so the edges do not crawl; the fog hides the rest. Only the terrain
+receives, so a tree does not shade its neighbour. The sun's direction is the
+rig's `setDirection`, which is how the time of day will move the shadows.
+
 ## Reading the ground
 
 Two things exist only so the world is legible from a chase camera:
