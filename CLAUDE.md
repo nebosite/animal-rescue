@@ -269,6 +269,18 @@ is no longer wired to anything: nothing takes the controls now.)
 
 ## The loop so far
 
+**Levels (`Campaign.ts`) replaced the five-minute shift and the endless
+restocking; where the text below disagrees, this wins.** Level one has a single
+animal. A level ends when every animal on it is home or gone — one the fire
+reaches is **lost for good**, not bolted. With anyone saved, the next level
+brings them back plus one new roster animal and the fire runs 8% faster per
+level (`Fire.pace`); with nobody saved, or a wreck landed at base, it is game
+over and `R` starts again at level one. An animal pays 100 times its place in
+the roster (100, 200, 300...), plus tens for a hard site and the quick, gentle
+and winch bonuses (20, 10, 30); a scolding costs 10. `Shift` survives only as the "card is
+up, play stopped" flag (`new Shift(Infinity)`). The airframe and tank still reset every
+level; whether damage should carry over is open until the upgrade shop exists.
+
 A five-minute **shift** (`Shift.ts`), started by the first key press. Three
 named animals from the roster (`AnimalProfile.ts`) wait out in the landscape at
 once, and **every one of them stands in the fire's path** — downwind of the

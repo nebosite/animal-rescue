@@ -103,7 +103,7 @@ describe('guidanceFor', () => {
 
   it('wraps up when the shift is over', () => {
     const guidance = at({ shiftOver: true, wrecked: true })
-    expect(guidance.task).toBe('Shift over')
+    expect(guidance.task).toBe('Round over')
     expect(guidance.hint).toContain('R')
   })
 

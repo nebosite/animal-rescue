@@ -53,7 +53,7 @@ export function guidanceFor(situation: Situation): Guidance {
   const { animalName, species, siteLabel, carrying, range, othersWaiting } = situation
 
   if (situation.shiftOver) {
-    return { task: 'Shift over', hint: 'Press R to fly another one.', target: 'base', landing: false }
+    return { task: 'Round over', hint: 'Press R to carry on.', target: 'base', landing: false }
   }
 
   if (situation.wrecked) {

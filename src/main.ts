@@ -11,6 +11,7 @@ import { guidanceFor } from './game/Objective'
 import { TargetMarker, type Box } from './ui/TargetMarker'
 import { Airframe } from './game/Airframe'
 import { Cooldown } from './game/Cooldown'
+import { Campaign } from './game/Campaign'
 import { Shift } from './game/Shift'
 import { noInput } from './game/FlightInput'
 import { Turbulence } from './game/Turbulence'
@@ -51,8 +52,13 @@ const markers = world.waitingAnimals.map((_, i) => {
   return new TargetMarker(root, root.querySelector('.target-arrow')!, root.querySelector('.target-label')!)
 })
 
-const rescue = new Rescue(world.rescuePad, world.sites, world.fire)
-const shift = new Shift()
+const campaign = new Campaign()
+const rescue = new Rescue(world.rescuePad, world.sites, world.fire, campaign.party)
+// No clock any more: a level lasts until every animal is home or gone. Shift
+// stays as the flag for "play is stopped, the card is up".
+const shift = new Shift(Infinity)
+/** True when the card up is the end of the run, not the gap between levels. */
+let gameOver = false
 const handling = new Handling()
 const announcer = new Announcer()
 const airframe = new Airframe()
@@ -118,6 +124,7 @@ if (import.meta.env.DEV) {
     helicopter,
     controls,
     rescue,
+    campaign,
     world,
     airframe,
     shift,
@@ -157,15 +164,14 @@ renderer.setAnimationLoop(() => {
 
   if (underway && !shift.over) {
     world.fire.advance(dt)
-    const bolted = rescue.advance(dt)
-    if (bolted) {
-      flagged.delete(bolted)
-      hud.flash(`${bolted.animal.name.toUpperCase()} BOLTED FROM THE FIRE — FIND ${bolted.animal.name.toUpperCase()} AGAIN`)
-      radio.say(announcer.bolted(bolted.animal))
+    const lost = rescue.advance(dt)
+    if (lost) {
+      flagged.delete(lost)
+      hud.flash(`${lost.animal.name.toUpperCase()} RAN FROM THE FIRE — GONE`)
+      radio.say(announcer.bolted(lost.animal))
       presentAnimals()
     }
     warnOfFire()
-    if (shift.advance(dt)) endShift()
   }
 
   const ground = world.terrain.heightAt(helicopter.position.x, helicopter.position.z)
@@ -246,9 +252,11 @@ renderer.setAnimationLoop(() => {
     }
   }
 
-  // Bringing a write-off home is how a player chooses to stop. Checked after
-  // the delivery above, so the animal aboard is still credited on the way in.
-  if (!shift.over && airframe.isWrecked && landedPad === world.rescuePad) endShift('wrecked')
+  // Checked after the delivery above, so the last animal home is credited.
+  if (underway && !shift.over && rescue.levelOver) endLevel()
+
+  // Bringing a write-off home is how a player chooses to stop.
+  if (!shift.over && airframe.isWrecked && landedPad === world.rescuePad) endGame('wrecked')
 
   if (shift.over && restartInput.poll()) flyAnother()
 
@@ -260,7 +268,7 @@ renderer.setAnimationLoop(() => {
   hud.showGamepad(controls.usingGamepad)
   hud.setIntegrity(airframe.integrity)
   hud.setCrew(winch.extended, tank.fraction, tank.loads, copilotSeat.taken)
-  hud.setClock(shift.clock, shift.closing)
+  hud.setClock(`LEVEL ${campaign.level}`, false)
   hud.update(standingStatus(landedPad), rescue.score)
 
   renderer.render(world.scene, world.camera)
@@ -476,22 +484,40 @@ function warnOfFire(): void {
 }
 
 /**
- * Time, or the helicopter. Freeze the controls, show the card, let the Chief
- * have the last word.
+ * Every animal on this level is home or gone. Somebody saved means the next
+ * level, with them and one more; nobody means the run is over.
  */
-function endShift(why: 'time' | 'wrecked' = 'time'): void {
-  // Idempotent, and necessary: when the clock runs out the shift has already
-  // ended itself, but a wrecked helicopter landing at base has not.
+function endLevel(): void {
   shift.end()
+  const saved = [...rescue.saved]
+  const cleared = campaign.level
+  const outcome = campaign.finishLevel(saved)
+  analytics.event('level_end', { level: cleared, saved: saved.length, lost: rescue.lost.length, score: rescue.score })
+  if (outcome === 'over') {
+    endGame('lost')
+    return
+  }
+  const news = campaign.party.filter((a) => !saved.includes(a))
+  const detail = news.length
+    ? `${news.map((a) => a.name).join(', ')} joins the next one`
+    : 'the fire runs faster'
+  hud.showShiftEnd(rescue.score, rescue.rescued, detail, `Level ${cleared} cleared`, `Press <b>R</b> &mdash; or <b>Start</b> &mdash; for level ${campaign.level}`)
+  hud.flash(`LEVEL ${cleared} CLEARED`)
+  radio.say(announcer.shiftOver(saved.length))
+}
+
+/** The run is over: every animal lost, or a write-off brought home. */
+function endGame(why: 'lost' | 'wrecked'): void {
+  // Idempotent: endLevel may already have stopped play before calling this.
+  shift.end()
+  gameOver = true
   const paint = `airframe at ${Math.round(airframe.integrity * 100)}%`
   const detail = why === 'wrecked'
     ? `${paint} — you brought the wreck home`
-    : rescue.rescued === 0
-      ? 'nobody came home — next time, follow the amber flares'
-      : paint
-  hud.showShiftEnd(rescue.score, rescue.rescued, detail)
-  analytics.event('shift_end', { reason: why, score: rescue.score, rescued: rescue.rescued })
-  hud.flash(why === 'wrecked' ? 'HELICOPTER WRITTEN OFF — SHIFT OVER' : 'SHIFT OVER')
+    : 'the fire got there first — next time, follow the amber flares'
+  hud.showShiftEnd(rescue.score, rescue.rescued, detail, 'Game over', 'Press <b>R</b> &mdash; or <b>Start</b> &mdash; to start again')
+  analytics.event('shift_end', { reason: why, score: rescue.score, rescued: rescue.rescued, level: campaign.level })
+  hud.flash(why === 'wrecked' ? 'HELICOPTER WRITTEN OFF — GAME OVER' : 'GAME OVER')
   radio.say(announcer.shiftOver(rescue.rescued))
 }
 
@@ -506,7 +532,15 @@ function endShift(why: 'time' | 'wrecked' = 'time'): void {
  */
 function flyAnother(): void {
   world.reset()
-  rescue.reset()
+  world.fire.pace = campaign.firePace
+  if (gameOver) {
+    campaign.restart()
+    world.fire.pace = campaign.firePace
+    rescue.reset(campaign.party)
+  } else {
+    rescue.startLevel(campaign.party)
+  }
+  gameOver = false
   shift.restart()
   airframe.repair()
   tank.fill()
@@ -520,7 +554,7 @@ function flyAnother(): void {
   helicopter.condition = 1
 
   hud.hideShiftEnd()
-  hud.flash('NEW SHIFT — GO')
+  hud.flash(`LEVEL ${campaign.level} — GO`)
   presentAnimals()
   radio.say(announcer.welcome())
 }
@@ -569,7 +603,7 @@ function placeAnimals(): void {
 }
 
 function standingStatus(landedPad: LandingPad | null): string {
-  if (shift.over) return 'SHIFT OVER — PRESS R OR START TO FLY AGAIN'
+  if (shift.over) return gameOver ? 'GAME OVER — PRESS R OR START TO PLAY AGAIN' : `LEVEL CLEARED — PRESS R OR START FOR LEVEL ${campaign.level}`
   if (airframe.isWrecked) return 'AIRFRAME GONE — LAND AT BASE TO END THE SHIFT'
   if (landedPad) return `LANDED — ${landedPad.label.toUpperCase()}`
   if (rescue.carrying) return `CARRYING ${rescue.carrying.animal.name.toUpperCase()}`

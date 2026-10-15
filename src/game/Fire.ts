@@ -44,6 +44,8 @@ export class Fire {
   age = 0
   /** Which way the wind is pushing the front, as a unit vector. */
   readonly spread: { x: number; z: number }
+  /** How fast time runs for the fire alone: later levels burn quicker. */
+  pace = 1
 
   private readonly live: FirePatch[]
   /** The front as the shift starts, kept so another shift can relight it. */
@@ -117,7 +119,8 @@ export class Fire {
    * waiting. Deterministic, so the same map always burns the same way and can
    * be learned.
    */
-  advance(dt: number): void {
+  advance(realDt: number): void {
+    const dt = realDt * this.pace
     this.age += dt
     for (const patch of this.live) {
       patch.radius = Math.min(MAX_RADIUS, patch.radius + GROWTH_PER_SECOND * dt)

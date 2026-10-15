@@ -47,10 +47,13 @@ export class Rescue {
   readonly waiting: Waiting[] = []
   carrying: Waiting | null = null
   lastDelivery: Delivery | null = null
-  /** The last animal the fire chased off, for the radio. */
-  lastBolted: Waiting | null = null
+  /** The last animal the fire ran off, for the radio. */
+  lastLost: Waiting | null = null
+  /** Everyone the fire has taken from this level — gone for good. */
+  readonly lost: Waiting[] = []
+  /** Everyone delivered this level; they are the party for the next. */
+  readonly saved: AnimalProfile[] = []
 
-  private nextInRoster = 0
   private seed = 0
   private carriedSeconds = 0
   private carriedFrom: Site | null = null
@@ -60,15 +63,15 @@ export class Rescue {
     private readonly rescuePad: LandingPad,
     private readonly sites: SiteFinder,
     private readonly fire: Fire,
+    party: readonly AnimalProfile[] = ROSTER.slice(0, 1),
     private readonly roster: readonly AnimalProfile[] = ROSTER,
-    private readonly slots = SLOTS,
   ) {
-    this.restock()
+    this.stock(party)
   }
 
   /** The animal aboard, or the one the player should go for next. */
   get animal(): AnimalProfile {
-    return this.carrying?.animal ?? this.waiting[0]?.animal ?? this.roster[0]
+    return this.carrying?.animal ?? this.waiting[0]?.animal ?? this.saved[0] ?? this.roster[0]
   }
 
   /** Points the aboard animal will credit if delivered now. */
@@ -105,25 +108,28 @@ export class Rescue {
   }
 
   /**
-   * Time passes. Animals the fire has reached run for it — never hurt, just
-   * somewhere else now, and a little less patient. Returns whoever bolted.
+   * Time passes. An animal the fire reaches runs for the hills and is gone —
+   * never hurt, but out of reach, and not coming back. Returns whoever left.
    */
   advance(dt: number): Waiting | null {
-    this.lastBolted = null
+    this.lastLost = null
     if (this.carrying) this.carriedSeconds += dt
 
     for (const w of this.waiting) {
       w.waitedSeconds += dt
       if (this.fire.intensityAt(w.site.x, w.site.z) < BOLT_AT) continue
 
-      const refuge = this.sites.fleeFrom(w.site, this.fire, this.seed++, this.othersThan(w))
-      if (!refuge) continue
-      w.site = refuge
-      w.credit = Math.max(1, w.credit - 1)
-      this.lastBolted = w
+      this.waiting.splice(this.waiting.indexOf(w), 1)
+      this.lost.push(w)
+      this.lastLost = w
       return w
     }
     return null
+  }
+
+  /** Nobody left to fetch or carry: every animal this level is home or gone. */
+  get levelOver(): boolean {
+    return this.waiting.length === 0 && this.carrying === null
   }
 
   /**
@@ -172,51 +178,58 @@ export class Rescue {
   }
 
   /**
-   * Another shift: nothing rescued, nobody aboard, three fresh animals out in
-   * the landscape. The fire has to be relit before this is called, or the new
-   * animals are placed around a front that has already crossed the map.
+   * Another level, with this party. The score carries on; nothing else does.
+   * The fire has to be relit before this is called, or the animals are placed
+   * around a front that has already crossed the map.
    */
-  reset(): void {
-    this.score = 0
-    this.rescued = 0
+  startLevel(party: readonly AnimalProfile[]): void {
     this.waiting.length = 0
+    this.lost.length = 0
+    this.saved.length = 0
     this.carrying = null
     this.lastDelivery = null
-    this.lastBolted = null
-    this.nextInRoster = 0
+    this.lastLost = null
     this.seed = 0
     this.carriedSeconds = 0
     this.carriedFrom = null
     this.carriedByWinch = false
-    this.restock()
+    this.stock(party)
   }
 
-  /** Rough handling while aboard costs a point of credit — but never the last one. */
+  /** A whole new game: no points, no history. */
+  reset(party: readonly AnimalProfile[]): void {
+    this.score = 0
+    this.rescued = 0
+    this.startLevel(party)
+  }
+
+  /** Rough handling while aboard costs a little credit — but never the animal's base value. */
   scold(): void {
-    if (this.carrying && this.carrying.credit > 1) this.carrying.credit -= 1
+    if (!this.carrying) return
+    this.carrying.credit = Math.max(this.rankOf(this.carrying.animal) * POINTS_PER_RANK, this.carrying.credit - SCOLD_COST)
   }
 
   /**
-   * Keep the map stocked with animals to find.
-   *
-   * Every one of them stands in the fire's path — that is the premise: they are
-   * running from the front and you are the only way out. They are spread
-   * across three bands of distance from the flames, so at any moment there is
-   * someone with smoke over them and someone still out in the green, and the
-   * player has a real choice about which to spend the time on.
+   * Put each party member out in the landscape, in the fire's path — that is
+   * the premise: they are running from the front and you are the only way out.
+   * They are spread across bands of distance from the flames, the first of
+   * them far enough out to leave a new pilot time to learn the machine.
    */
-  restock(): void {
-    while (this.waiting.length < this.slots) {
-      const aheadBy = BANDS[this.nextInRoster % BANDS.length]
+  private stock(party: readonly AnimalProfile[]): void {
+    party.forEach((animal, i) => {
+      const aheadBy = BANDS[i % BANDS.length]
       const avoid = this.waiting.map((w) => w.site)
       const site = this.sites.findAhead(this.fire, aheadBy, this.seed++, avoid)
         ?? this.sites.find('clearing', this.fire, this.seed++, avoid)
       if (!site) return
-      const animal = this.roster[this.nextInRoster % this.roster.length]
-      this.nextInRoster += 1
-      const credit = animal.value + site.difficulty - 1
+      const credit = this.rankOf(animal) * POINTS_PER_RANK + (site.difficulty - 1) * POINTS_PER_DIFFICULTY
       this.waiting.push({ animal, site, credit, initialCredit: credit, waitedSeconds: 0 })
-    }
+    })
+  }
+
+  /** 1 for the first animal ever met, 2 for the second, and so on. */
+  private rankOf(animal: AnimalProfile): number {
+    return Math.max(0, this.roster.indexOf(animal)) + 1
   }
 
   private deliver(impactSpeed: number): RescueEvent {
@@ -243,20 +256,20 @@ export class Rescue {
     this.lastDelivery = { animal: aboard.animal, site: from, credited, bonuses, scolded: aboard.credit < aboard.initialCredit }
     this.score += credited
     this.rescued += 1
+    this.saved.push(aboard.animal)
     this.carrying = null
     this.carriedFrom = null
     this.carriedByWinch = false
-    this.restock()
     return 'delivered'
   }
 
-  private othersThan(w: Waiting): Site[] {
-    return this.waiting.filter((other) => other !== w).map((other) => other.site)
-  }
 }
 
-/** How many animals are out there at once. */
-const SLOTS = 3
+/** Each animal is worth its place in the roster times this: 100, 200, 300... */
+const POINTS_PER_RANK = 100
+/** Scores are in hundreds now, so the old one-point extras are tens. */
+const POINTS_PER_DIFFICULTY = 10
+const SCOLD_COST = 10
 /** Land within this of the animal to take it aboard. */
 export const PICKUP_RADIUS = 13
 /** Fire this intense at an animal's feet sends it running. */
@@ -264,12 +277,12 @@ const BOLT_AT = 0.25
 /** Within this of the fire an animal counts as threatened. */
 const WORRYING_RANGE = 70
 /**
- * How far ahead of the flames each animal waits, cycled over the three slots
- * so there is always one with the fire at the treeline and one a long flight
- * out. The near band is inside WORRYING_RANGE on purpose: somebody should
- * always be the one the Chief is shouting about.
+ * How far ahead of the flames each animal waits, in the order they are placed.
+ * The first is well out, so level one is a lesson and not a panic; the second
+ * is inside WORRYING_RANGE on purpose, so from level two somebody is always the
+ * one the Chief is shouting about.
  */
-const BANDS: readonly number[] = [55, 150, 300]
+const BANDS: readonly number[] = [150, 55, 300]
 /**
  * A brisk direct flight, a little under the helicopter's top speed (about 69).
  * It was 30 when the top speed was 46, and moves with it: left alone, beating
@@ -277,11 +290,11 @@ const BANDS: readonly number[] = [55, 150, 300]
  */
 const PAR_SPEED = 45
 const PAR_SLACK = 10
-const QUICK_BONUS = 2
-const GENTLE_BONUS = 1
+const QUICK_BONUS = 20
+const GENTLE_BONUS = 10
 const GENTLE_TOUCHDOWN = 3.5
 /** Winching is the hard way up, and pays like it. */
-const WINCH_BONUS = 3
+const WINCH_BONUS = 30
 /** How far off the animal the hook can be and still catch it. */
 export const WINCH_REACH = 11
 /** And how far above or below its feet. */

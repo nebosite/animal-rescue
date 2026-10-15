@@ -20,12 +20,14 @@ const finder = new SiteFinder(terrain, trees, baseAt)
 const at = (site: { x: number; y: number; z: number }) => ({ x: site.x, y: site.y + 2, z: site.z })
 const onBase = { x: base.position.x, y: base.position.y + 2, z: base.position.z }
 
+const THREE_ANIMALS = ROSTER.slice(0, 3)
+
 describe('Rescue', () => {
   let fire: Fire
   let rescue: Rescue
   beforeEach(() => {
     fire = Fire.sweepingIn(WEST, 420)
-    rescue = new Rescue(base, finder, fire)
+    rescue = new Rescue(base, finder, fire, THREE_ANIMALS)
   })
 
   it('starts with three animals waiting at three different places', () => {
@@ -42,8 +44,11 @@ describe('Rescue', () => {
     }
   })
 
-  it('credits value plus the difficulty of the place, from the start', () => {
-    for (const w of rescue.waiting) expect(w.credit).toBe(w.animal.value + w.site.difficulty - 1)
+  it('pays 100 for the first animal, 200 for the second, plus a little for a hard place', () => {
+    for (const w of rescue.waiting) {
+      const rank = ROSTER.indexOf(w.animal) + 1
+      expect(w.credit).toBe(rank * 100 + (w.site.difficulty - 1) * 10)
+    }
   })
 
   it('picks up whichever animal you land beside', () => {
@@ -62,7 +67,7 @@ describe('Rescue', () => {
     expect(rescue.carrying).toBeNull()
   })
 
-  it('delivers at the base, scores, and restocks so there are always three out there', () => {
+  it('delivers at the base and scores, and nobody takes their place', () => {
     const target = rescue.waiting[0]
     rescue.landedOn(null, at(target.site), true)
     expect(rescue.landedOn(base, onBase, true)).toBe('delivered')
@@ -70,7 +75,8 @@ describe('Rescue', () => {
     expect(rescue.rescued).toBe(1)
     expect(rescue.score).toBeGreaterThanOrEqual(target.credit)
     expect(rescue.lastDelivery?.animal).toBe(target.animal)
-    expect(rescue.waiting).toHaveLength(3)
+    expect(rescue.waiting).toHaveLength(2)
+    expect(rescue.saved).toEqual([target.animal])
   })
 
   it('does not deliver at the base with nobody aboard, or on a pad that is not the base', () => {
@@ -91,7 +97,7 @@ describe('Rescue', () => {
 
     rescue.advance(1)
     rescue.landedOn(base, onBase, true, 1)
-    expect(rescue.lastDelivery?.bonuses).toContain('winched +3')
+    expect(rescue.lastDelivery?.bonuses).toContain('winched +30')
   })
 
   it('will not winch from too high, too fast, or with nobody below', () => {
@@ -119,7 +125,7 @@ describe('Rescue', () => {
     rescue.landedOn(null, at(target.site), true)
     rescue.advance(1)
     rescue.landedOn(base, onBase, true, 1)
-    expect(rescue.lastDelivery?.bonuses).not.toContain('winched +3')
+    expect(rescue.lastDelivery?.bonuses).not.toContain('winched +30')
   })
 
   it('pays a bonus for a quick trip and a gentle touchdown, and says why', () => {
@@ -127,8 +133,8 @@ describe('Rescue', () => {
     rescue.landedOn(null, at(target.site), true)
     rescue.advance(1) // a second later: far inside par
     rescue.landedOn(base, onBase, true, 1)
-    expect(rescue.lastDelivery?.bonuses).toEqual(['quick +2', 'gentle +1'])
-    expect(rescue.lastDelivery?.credited).toBe(target.credit + 3)
+    expect(rescue.lastDelivery?.bonuses).toEqual(['quick +20', 'gentle +10'])
+    expect(rescue.lastDelivery?.credited).toBe(target.credit + 30)
   })
 
   it('pays no bonus for dawdling and slamming down', () => {
@@ -141,31 +147,49 @@ describe('Rescue', () => {
     expect(rescue.lastDelivery?.credited).toBe(credit)
   })
 
-  it('docks a point per scolding, never below one, and only while aboard', () => {
+  it('docks ten points per scolding, never below the animal base, and only while aboard', () => {
+    const before = rescue.waiting[0].credit
     rescue.scold()
-    expect(rescue.waiting[0].credit).toBe(rescue.waiting[0].animal.value + rescue.waiting[0].site.difficulty - 1)
+    expect(rescue.waiting[0].credit).toBe(before)
     const target = rescue.waiting[0]
     rescue.landedOn(null, at(target.site), true)
+    rescue.scold()
+    expect(rescue.credit).toBe(Math.max(before - 10, (ROSTER.indexOf(target.animal) + 1) * 100))
     for (let i = 0; i < 12; i++) rescue.scold()
-    expect(rescue.credit).toBe(1)
+    expect(rescue.credit).toBe((ROSTER.indexOf(target.animal) + 1) * 100)
   })
 
-  it('sends an animal running when the fire reaches it, at a cost, and tells you who', () => {
-    const victim = rescue.waiting[0]
-    const before = { ...victim.site }
-    const creditBefore = victim.credit
-    // The constructor avoids fire when placing, so plant a blaze on a site afterwards.
+  it('loses an animal for good when the fire reaches it, and tells you who', () => {
     const blaze = Fire.sweepingIn(WEST, 420)
-    const hot = new Rescue(base, finder, blaze, ROSTER)
+    const hot = new Rescue(base, finder, blaze, THREE_ANIMALS)
     const w = hot.waiting[0]
     blaze.addPatch({ x: w.site.x, z: w.site.z, radius: 30 })
-    const bolted = hot.advance(1 / 60)
-    expect(bolted).toBe(w)
-    expect(hot.lastBolted).toBe(w)
-    expect(Math.hypot(w.site.x - before.x, w.site.z - before.z)).toBeGreaterThan(0)
-    expect(blaze.intensityAt(w.site.x, w.site.z)).toBe(0)
-    expect(w.credit).toBeLessThanOrEqual(creditBefore)
-    void creditBefore
+    expect(hot.advance(1 / 60)).toBe(w)
+    expect(hot.lastLost).toBe(w)
+    expect(hot.lost).toEqual([w])
+    expect(hot.waiting).not.toContain(w)
+    expect(hot.waiting).toHaveLength(2)
+  })
+
+  it('ends the level when every animal is home or gone, and not before', () => {
+    const solo = new Rescue(base, finder, Fire.sweepingIn(WEST, 420))
+    expect(solo.waiting).toHaveLength(1)
+    expect(solo.levelOver).toBe(false)
+    solo.landedOn(null, at(solo.waiting[0].site), true)
+    expect(solo.levelOver).toBe(false) // still aboard
+    solo.landedOn(base, onBase, true)
+    expect(solo.levelOver).toBe(true)
+  })
+
+  it('starts the next level with the given party, keeping the score', () => {
+    rescue.landedOn(null, at(rescue.waiting[0].site), true)
+    rescue.landedOn(base, onBase, true)
+    const score = rescue.score
+    rescue.startLevel(ROSTER.slice(0, 2))
+    expect(rescue.waiting).toHaveLength(2)
+    expect(rescue.saved).toEqual([])
+    expect(rescue.lost).toEqual([])
+    expect(rescue.score).toBe(score)
   })
 
   it('always has somebody with the fire at their heels, and sends you there first', () => {
@@ -185,26 +209,14 @@ describe('Rescue', () => {
     // Right off the map: the bands are measured from the flames, so a fire
     // anywhere on it would have somebody standing the near band away from it.
     const faraway = new Fire([{ x: 4000, z: 4000, radius: 10, age: 0 }])
-    const quiet = new Rescue(base, finder, faraway, ROSTER)
+    const quiet = new Rescue(base, finder, faraway, THREE_ANIMALS)
     expect(quiet.mostThreatened()).toBeNull()
     const target = quiet.waiting[2]
     expect(quiet.recommended({ x: target.site.x, z: target.site.z })).toBe(target)
   })
 
-  it('works through the roster in order and wraps around', () => {
-    const seen: string[] = []
-    for (let trip = 0; trip < ROSTER.length + 2; trip++) {
-      const target = rescue.waiting[0]
-      seen.push(target.animal.id)
-      rescue.landedOn(null, at(target.site), true)
-      rescue.landedOn(base, onBase, true)
-    }
-    expect(seen.slice(0, ROSTER.length)).toEqual(ROSTER.map((a) => a.id))
-    expect(seen[ROSTER.length]).toBe(ROSTER[0].id)
-  })
-
   it('reports the same layout every time, so the map is learnable', () => {
-    const again = new Rescue(base, finder, Fire.sweepingIn(WEST, 420))
+    const again = new Rescue(base, finder, Fire.sweepingIn(WEST, 420), THREE_ANIMALS)
     expect(again.waiting.map((w) => [w.animal.id, w.site.x, w.site.z]))
       .toEqual(rescue.waiting.map((w) => [w.animal.id, w.site.x, w.site.z]))
   })

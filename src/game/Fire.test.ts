@@ -313,3 +313,15 @@ describe('Fire.relight', () => {
     expect(once.patches.map((patch) => ({ x: patch.x, z: patch.z, radius: patch.radius, age: patch.age }))).toEqual(after)
   })
 })
+
+describe('Fire.pace', () => {
+  it('runs the front faster when the pace is up, and relight keeps it', () => {
+    const lead = (pace: number) => {
+      const fire = Fire.sweepingIn({ x: -1, z: 0 }, 420)
+      fire.pace = pace
+      for (let i = 0; i < 600; i++) fire.advance(0.1)
+      return fire.age
+    }
+    expect(lead(1.5)).toBeCloseTo(lead(1) * 1.5, 5)
+  })
+})

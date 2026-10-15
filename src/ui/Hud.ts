@@ -75,9 +75,11 @@ export class Hud {
   }
 
   /** The end-of-shift card: score, what was brought home, how to go again. */
-  showShiftEnd(score: number, rescued: number, detail: string): void {
+  showShiftEnd(score: number, rescued: number, detail: string, title = 'Shift over', prompt?: string): void {
     const overlay = document.getElementById('shift-end')
     if (!overlay) return
+    document.getElementById('shift-end-title')!.textContent = title
+    if (prompt) document.getElementById('shift-end-prompt')!.innerHTML = prompt
     document.getElementById('shift-end-score')!.textContent = String(score)
     document.getElementById('shift-end-detail')!.textContent = `${rescued} rescued · ${detail}`
     overlay.hidden = false
