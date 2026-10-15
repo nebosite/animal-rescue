@@ -62,6 +62,26 @@ export class Hud {
     }
   }
 
+  private renderedTemperature = -1
+  private renderedSpraying: boolean | null = null
+
+  /** The temperature gauge: how close the machine is to burning, and whether the spray is on. */
+  setTemperature(temperature: number, spraying: boolean): void {
+    const bar = document.getElementById('temp-bar')
+    if (!bar) return
+    const percent = Math.round(temperature * 100)
+    if (percent !== this.renderedTemperature) {
+      this.renderedTemperature = percent
+      bar.style.width = `${percent}%`
+      bar.dataset.level = temperature >= 0.8 ? 'critical' : temperature >= 0.5 ? 'hot' : 'ok'
+    }
+    if (spraying !== this.renderedSpraying) {
+      this.renderedSpraying = spraying
+      const label = document.getElementById('temp-state')
+      if (label) label.textContent = spraying ? 'SPRAY' : ' '
+    }
+  }
+
   private renderedRoster = ''
 
   /**

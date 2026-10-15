@@ -128,6 +128,10 @@
       .gauge-track > div { height: 100%; width: 0%; transition: width 120ms linear; }
       #winch-bar { background: #d8c88a; }
       #water-bar { background: #7fc9f2; }
+      #temp-bar { background: var(--green); }
+      #temp-bar[data-level="hot"] { background: var(--amber); }
+      #temp-bar[data-level="critical"] { background: #ef6a4a; }
+      #temp-state { width: calc(34px * var(--ui)); color: #7fc9f2; font-size: calc(9px * var(--ui)); }
       .gauge-count { width: calc(10px * var(--ui)); text-align: right; color: var(--ink); }
 
       /* ---- bottom: messages ---- */
@@ -234,6 +238,7 @@
       <div id="integrity" data-state="fine">AIRFRAME<div id="integrity-track"><div id="integrity-bar"></div></div></div>
       <div id="crew" data-seat="ferret">COPILOT <span id="crew-who">BRAM</span>
         <div class="gauge-row"><span class="gauge-label">WINCH</span><span class="gauge-track"><div id="winch-bar"></div></span><span class="gauge-count" aria-hidden="true">&nbsp;</span></div>
+        <div class="gauge-row"><span class="gauge-label">TEMP</span><span class="gauge-track"><div id="temp-bar" data-level="ok"></div></span><span id="temp-state" class="gauge-count">&nbsp;</span></div>
         <div class="gauge-row"><span class="gauge-label">WATER</span><span class="gauge-track"><div id="water-bar"></div></span><span id="water-loads" class="gauge-count">4</span></div>
       </div>
     </div>
@@ -265,7 +270,7 @@
       <div id="controls-hint" data-device="keyboard">
         <span class="for-keyboard">
           <b>W S</b> climb / descend &nbsp;·&nbsp; <b>A D</b> turn &nbsp;·&nbsp; <b>↑ ↓</b> nose &nbsp;·&nbsp; <b>← →</b> slide<br />
-          <span style="opacity:.75">Player 2 &nbsp;<b>Space</b> winch &nbsp;·&nbsp; <b>F</b> water &nbsp;·&nbsp; or a 2nd controller</span>
+          <span style="opacity:.75">Player 2 &nbsp;<b>Space</b> winch &nbsp;·&nbsp; hold <b>F</b> to spray &nbsp;·&nbsp; or a 2nd controller</span>
         </span>
         <span class="for-gamepad">
           <b>Left stick</b> nose / turn &nbsp;·&nbsp; <b>Right stick</b> climb / slide &nbsp;·&nbsp; <b>RT LT</b> climb / descend<br />

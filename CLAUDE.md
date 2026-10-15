@@ -250,6 +250,17 @@ and again once it is a black snag, and in the unlit one for the eleven seconds
 in between. It must leave the lit mesh when it moves, or it is drawn twice and
 the shaded copy shows through.
 
+**Water is what a landing in the fire costs (`HeatGauge`).** Flame heats the
+machine; a TEMP gauge in the copilot panel shows it. With nobody in the second
+seat the spray comes on by itself at half temperature and goes off again at a
+fifth, draining the belly tank continuously — about forty seconds sitting in the
+thickest flame on a full tank, with no damage at all. Only when the tank is dry
+does the temperature reach the top and the paint go. A person in the seat holds
+`F` (or the pad's water button) to spray instead; Bram drops loads, a person
+does not. The spray cools the machine and does not put the fire out: an early
+version doused the fire under the skids and a single puff killed the blaze
+you had landed in.
+
 Fire harms only the machine, never anything alive. `Airframe` tracks integrity:
 about four seconds in the flames wrecks it, and knocks cost a little paint.
 

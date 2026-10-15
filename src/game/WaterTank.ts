@@ -22,10 +22,22 @@ export class WaterTank {
     return this.level >= LOAD
   }
 
+  /** Any water at all, even less than a full load — enough to spray. */
+  get hasSpray(): boolean {
+    return this.level > 0
+  }
+
   /** Drop a load. Returns false, and drops nothing, when the tank is dry. */
   drop(): boolean {
     if (!this.hasWater) return false
     this.level -= LOAD
+    return true
+  }
+
+  /** Draw off part of a load for a spray. Returns false once there is nothing left to draw. */
+  spray(loads: number): boolean {
+    if (this.level <= 0) return false
+    this.level = Math.max(0, this.level - loads)
     return true
   }
 

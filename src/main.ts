@@ -12,6 +12,7 @@ import { TargetMarker, type Box } from './ui/TargetMarker'
 import { Airframe } from './game/Airframe'
 import { Cooldown } from './game/Cooldown'
 import { Campaign } from './game/Campaign'
+import { HeatGauge } from './game/HeatGauge'
 import { ROSTER } from './game/AnimalProfile'
 import { rosterBoard } from './game/RosterBoard'
 import { Shift } from './game/Shift'
@@ -70,6 +71,7 @@ const copilotSeat = new CopilotInput()
 copilotSeat.attach(window)
 const winch = new Winch()
 const tank = new WaterTank()
+const heatGauge = new HeatGauge()
 const restartInput = new RestartInput()
 restartInput.attach(window)
 /*
@@ -81,6 +83,9 @@ restartInput.attach(window)
  * a joke. These are now spaced so a line is an event.
  */
 const fireWarning = new Cooldown(9)
+/** How often the spray is announced. */
+const sprayAnnounce = new Cooldown(8)
+const dryWarning = new Cooldown(10)
 const treeWarning = new Cooldown(11)
 const damageWarning = new Cooldown(20)
 const ferretChatter = new Cooldown(26)
@@ -133,6 +138,7 @@ if (import.meta.env.DEV) {
     restartInput,
     winch,
     tank,
+    heatGauge,
     copilot,
     copilotSeat,
     get soundscape() { return soundscape },
@@ -270,6 +276,7 @@ renderer.setAnimationLoop(() => {
   hud.showGamepad(controls.usingGamepad)
   hud.setIntegrity(airframe.integrity)
   hud.setCrew(winch.extended, tank.fraction, tank.loads, copilotSeat.taken)
+  hud.setTemperature(heatGauge.temperature, heatGauge.spraying)
   hud.setClock(`LEVEL ${campaign.level}`, false)
   hud.setRoster(rosterBoard(ROSTER, rescue, campaign))
   hud.update(standingStatus(landedPad), rescue.score)
@@ -358,7 +365,8 @@ function workTheCopilot(ground: number, dt: number): void {
   winch.update(wantsWinch, dt)
   if (paying) radio.say(announcer.ferret('winchReady'))
 
-  const wantsWater = copilotSeat.taken ? command.water : orders.dropWater
+  // A person in the seat holds the hose (see `HeatGauge`); only Bram drops loads. The hose cools the machine and does not put the fire out — that is what loads are for.
+  const wantsWater = !copilotSeat.taken && orders.dropWater
   if (wantsWater && waterCooldown.tryFire()) dropWater(ground)
   waterCooldown.advance(dt)
 
@@ -396,8 +404,21 @@ function burn(ground: number, dt: number): void {
   const altitude = helicopter.position.y - (ground + SKID_HEIGHT)
   const heat = world.fire.heatAt(helicopter.position.x, helicopter.position.z, altitude)
 
-  if (heat > 0) {
-    airframe.scorch(heat, dt)
+  // Flame heats the machine; water is what stands between that and the paint.
+  const wasSpraying = heatGauge.spraying
+  const reaching = heatGauge.advance(dt, { flameHeat: heat, manual: copilotSeat.taken, manualSpray: copilotSeat.command.water }, tank)
+  sprayAnnounce.advance(dt)
+  dryWarning.advance(dt)
+
+  if (heatGauge.spraying) {
+    if (!wasSpraying && sprayAnnounce.tryFire()) hud.flash('COOLING SPRAY ON')
+  } else if (heatGauge.temperature > DRY_WARNING_AT && !tank.hasSpray && dryWarning.tryFire()) {
+    hud.flash('TANK DRY — GET OUT OF THE FIRE')
+    radio.say(announcer.ferret('dry'))
+  }
+
+  if (reaching > 0) {
+    airframe.scorch(reaching, dt)
     if (fireWarning.tryFire()) radio.say(announcer.scorched())
   }
 
@@ -547,6 +568,7 @@ function flyAnother(): void {
   shift.restart()
   airframe.repair()
   tank.fill()
+  heatGauge.reset()
   winch.stow()
   flagged.clear()
   soundscape?.voice.silence()
@@ -744,3 +766,6 @@ const CARRY_SCALE = 0.55
 const SKID_CLEARANCE = 1.0
 /** Matches the flight model: how far the skids hold the hull off the ground. */
 const SKID_HEIGHT = 2
+
+/** A hot machine with an empty tank is worth a warning from here. */
+const DRY_WARNING_AT = 0.6
