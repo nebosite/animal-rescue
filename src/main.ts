@@ -28,6 +28,8 @@ import { CHIEF_FUSSINESS } from './game/AnimalProfile'
 import { AudioEngine } from './audio/AudioEngine'
 import { Soundscape } from './audio/Soundscape'
 import { VolumeControl } from './ui/VolumeControl'
+import { VersionLabel } from './ui/VersionLabel'
+import { CHANGELOG } from './version/Changelog'
 import { RadioPanel } from './ui/RadioPanel'
 import { RestartInput } from './game/RestartInput'
 import { Analytics } from './telemetry/Analytics'
@@ -122,6 +124,7 @@ audio.onStart(() => {
   underway = true
   analytics.event('game_start')
 })
+new VersionLabel(document.getElementById('version') as HTMLButtonElement, document.getElementById('changelog')!, CHANGELOG)
 new VolumeControl(
   audio,
   document.getElementById('mute') as HTMLButtonElement,

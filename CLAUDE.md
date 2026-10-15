@@ -454,6 +454,13 @@ key or click and the HUD says so until then. In dev builds `window.__animalRescu
 exposes the engine, soundscape, helicopter and controls so a browser-driving
 test can put an analyser on the master bus and listen.
 
+## Versions
+
+The corner label shows the version; clicking it lists what changed, in plain
+words, for every release (`version/Changelog.ts`). **Every publish bumps the
+version in `package.json` and adds an entry at the top of the changelog** — a
+test fails if the two disagree. Publishing is a push to `main`.
+
 ## Metrics
 
 Anonymous usage counts go to Google Analytics 4 (`telemetry/Analytics.ts`,

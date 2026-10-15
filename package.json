@@ -1,6 +1,6 @@
 {
   "name": "animal-rescue",
-  "version": "0.0.0",
+  "version": "0.5.0",
   "description": "A 3D game: fly a helicopter to rescue animals fleeing a forest fire.",
   "scripts": {
     "dev": "vite --open",
