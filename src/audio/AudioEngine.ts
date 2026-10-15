@@ -14,6 +14,8 @@ export class AudioEngine {
   private mutedSetting = false
   private readonly startListeners: Array<(engine: AudioEngine) => void> = []
 
+  constructor(private readonly makeContext: () => AudioContext = () => new AudioContext()) {}
+
   /** True once the browser is actually producing sound. */
   get started(): boolean {
     return this.ctx !== null && this.ctx.state === 'running'
@@ -61,11 +63,19 @@ export class AudioEngine {
     return Math.sqrt(sum / this.meterSamples.length)
   }
 
-  /** Start on the first key press or click, which is when browsers allow sound. */
+  /**
+   * Start on a key press or click, which is when browsers allow sound.
+   *
+   * Not just the first one. A context made on a gesture the browser does not
+   * count (a modifier key, say) is born suspended and `resume()` is refused, and
+   * a listener that fired once could never try again — the game then sat silent
+   * with the speaker showing on until something else happened to wake it. Every
+   * gesture asks again until the browser says the context is running.
+   */
   armOnGesture(target: Window): void {
     const start = () => this.start()
-    for (const type of ['keydown', 'pointerdown', 'touchstart'] as const) {
-      target.addEventListener(type, start, { once: true, passive: true })
+    for (const type of ['keydown', 'pointerdown', 'touchstart', 'click'] as const) {
+      target.addEventListener(type, start, { passive: true })
     }
   }
 
@@ -81,7 +91,7 @@ export class AudioEngine {
       return
     }
 
-    this.ctx = new AudioContext()
+    this.ctx = this.makeContext()
 
     // A gentle limiter on the bus keeps one-shots stacked on the rotor from
     // clipping. It is a safety net, not a ducker: it only bites near full scale.
@@ -101,6 +111,11 @@ export class AudioEngine {
     limiter.connect(this.meter)
     this.meter.connect(this.ctx.destination)
     this.applyVolume()
+    // The volume was scheduled against a clock that may not have been running
+    // yet; say it again once the browser lets it tick.
+    this.ctx.addEventListener('statechange', () => {
+      if (this.ctx?.state === 'running') this.applyVolume()
+    })
 
     void this.ctx.resume()
     for (const listener of this.startListeners) listener(this)

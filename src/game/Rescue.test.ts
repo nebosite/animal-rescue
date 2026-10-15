@@ -133,8 +133,20 @@ describe('Rescue', () => {
     rescue.landedOn(null, at(target.site), true)
     rescue.advance(1) // a second later: far inside par
     rescue.landedOn(base, onBase, true, 1)
-    expect(rescue.lastDelivery?.bonuses).toEqual(['quick +20', 'gentle +10'])
-    expect(rescue.lastDelivery?.credited).toBe(target.credit + 30)
+    expect(rescue.lastDelivery?.bonuses).toEqual(['quick +20', 'gentle +50'])
+    expect(rescue.lastDelivery?.credited).toBe(target.credit + 70)
+  })
+
+  it('flags a soft touchdown so the animal can say so, and a firm one not', () => {
+    const target = rescue.waiting[0]
+    rescue.landedOn(null, at(target.site), true)
+    rescue.landedOn(base, onBase, true, 1)
+    expect(rescue.lastDelivery?.gentle).toBe(true)
+
+    const next = rescue.waiting[0]
+    rescue.landedOn(null, at(next.site), true)
+    rescue.landedOn(base, onBase, true, 5)
+    expect(rescue.lastDelivery?.gentle).toBe(false)
   })
 
   it('pays no bonus for dawdling and slamming down', () => {

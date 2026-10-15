@@ -28,11 +28,13 @@ export class Announcer {
     return this.animal(animal, this.pick(`${animal.id}.scold`, animal.lines.scold))
   }
 
-  /** Thanks — or something grudging if the trip cost the animal some patience. */
-  delivered(animal: AnimalProfile, scolded: boolean): RadioLine {
-    const lines = scolded ? animal.lines.grudging : animal.lines.thanks
-    const key = scolded ? `${animal.id}.grudging` : `${animal.id}.thanks`
-    return this.animal(animal, this.pick(key, lines))
+  /**
+   * Thanks — grudging if the trip cost the animal some patience, warm if the
+   * touchdown was feather-soft, and plain otherwise.
+   */
+  delivered(animal: AnimalProfile, scolded: boolean, gentle = false): RadioLine {
+    const kind = scolded ? 'grudging' : gentle ? 'gentle' : 'thanks'
+    return this.animal(animal, this.pick(`${animal.id}.${kind}`, animal.lines[kind]))
   }
 
   /** The Chief on the paint job. He has nothing to say about banking. */

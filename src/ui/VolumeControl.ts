@@ -18,6 +18,9 @@ export class VolumeControl {
     slider.value = String(start.volume)
 
     button.addEventListener('click', () => {
+      // Pressing the speaker is the clearest "I want sound" there is, and a
+      // gesture the browser always honours.
+      engine.start()
       const next = afterButton({ volume: engine.volume, muted: engine.muted })
       this.setVolume(next.volume)
       engine.setMuted(next.muted)
@@ -27,6 +30,7 @@ export class VolumeControl {
     })
 
     slider.addEventListener('input', () => {
+      engine.start()
       engine.setVolume(Number(slider.value))
       // Dragging the slider up is an unmistakable "I want sound".
       if (engine.muted && engine.volume > 0) engine.setMuted(false)

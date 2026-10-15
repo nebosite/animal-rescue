@@ -277,7 +277,7 @@ brings them back plus one new roster animal and the fire runs 8% faster per
 level (`Fire.pace`); with nobody saved, or a wreck landed at base, it is game
 over and `R` starts again at level one. An animal pays 100 times its place in
 the roster (100, 200, 300...), plus tens for a hard site and the quick, gentle
-and winch bonuses (20, 10, 30); a scolding costs 10. `Shift` survives only as the "card is
+and winch bonuses (20, 50, 30); a scolding costs 10. `Shift` survives only as the "card is
 up, play stopped" flag (`new Shift(Infinity)`). The airframe and tank still reset every
 level; whether damage should carry over is open until the upgrade shop exists.
 

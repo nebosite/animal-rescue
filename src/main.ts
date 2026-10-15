@@ -240,12 +240,12 @@ renderer.setAnimationLoop(() => {
         break
       }
       case 'delivered': {
-        const { animal, credited, bonuses, scolded } = rescue.lastDelivery!
+        const { animal, credited, bonuses, scolded, gentle } = rescue.lastDelivery!
         const extras = bonuses.length ? `  ·  ${bonuses.join('  ·  ')}` : ''
         hud.flash(`${animal.name.toUpperCase()} RESCUED!  +${credited}${extras}`)
         soundscape?.delivered()
         analytics.event('animal_rescued', { animal: animal.name, credit: credited })
-        radio.say(announcer.delivered(animal, scolded))
+        radio.say(announcer.delivered(animal, scolded, gentle))
         presentAnimals()
         break
       }

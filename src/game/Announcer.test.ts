@@ -21,6 +21,13 @@ describe('Announcer', () => {
     expect(wrapped.at(-1)).toBe(first)
   })
 
+  it('says something warm for a soft touchdown, unless it was already scolded', () => {
+    const announcer = new Announcer()
+    const duchess = ROSTER.find((a) => a.id === 'duchess')!
+    expect(duchess.lines.gentle).toContain(announcer.delivered(duchess, false, true).text)
+    expect(duchess.lines.grudging).toContain(announcer.delivered(duchess, true, true).text)
+  })
+
   it('thanks you properly for a smooth trip, and grudgingly for a rough one', () => {
     const announcer = new Announcer()
     expect(duchess.lines.thanks).toContain(announcer.delivered(duchess, false).text)

@@ -27,6 +27,8 @@ export interface Delivery {
   bonuses: string[]
   /** True if the animal was scolded on the way — it will not be gracious. */
   scolded: boolean
+  /** True if the touchdown at base was soft enough to earn the gentle bonus. */
+  gentle: boolean
 }
 
 /**
@@ -244,7 +246,8 @@ export class Rescue {
       credited += QUICK_BONUS
       bonuses.push(`quick +${QUICK_BONUS}`)
     }
-    if (impactSpeed < GENTLE_TOUCHDOWN) {
+    const gentle = impactSpeed < GENTLE_TOUCHDOWN
+    if (gentle) {
       credited += GENTLE_BONUS
       bonuses.push(`gentle +${GENTLE_BONUS}`)
     }
@@ -253,7 +256,7 @@ export class Rescue {
       bonuses.push(`winched +${WINCH_BONUS}`)
     }
 
-    this.lastDelivery = { animal: aboard.animal, site: from, credited, bonuses, scolded: aboard.credit < aboard.initialCredit }
+    this.lastDelivery = { animal: aboard.animal, site: from, credited, bonuses, scolded: aboard.credit < aboard.initialCredit, gentle }
     this.score += credited
     this.rescued += 1
     this.saved.push(aboard.animal)
@@ -291,7 +294,8 @@ const BANDS: readonly number[] = [150, 55, 300]
 const PAR_SPEED = 45
 const PAR_SLACK = 10
 const QUICK_BONUS = 20
-const GENTLE_BONUS = 10
+/** A feather-soft touchdown with a passenger aboard is the best thing a pilot can do for them. */
+const GENTLE_BONUS = 50
 const GENTLE_TOUCHDOWN = 3.5
 /** Winching is the hard way up, and pays like it. */
 const WINCH_BONUS = 30
